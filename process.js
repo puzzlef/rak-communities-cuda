@@ -5,7 +5,7 @@ const path = require('path');
 const ROMPTH = /^OMP_NUM_THREADS=(\d+)/;
 const RGRAPH = /^Loading graph .*\/(.*?)\.mtx \.\.\./m;
 const RORDER = /^order: (\d+) size: (\d+) (?:\[\w+\] )?\{\}/m;
-const RRESLT = /^\{-(.+?)\/\+(.+?) batchf, (.+?) threads\} -> \{(.+?)\/(.+?)ms, (.+?) iters, (.+?) passes, (.+?) modularity\} (\w+)/m;
+const RRESLT = /^\{-(.+?)\/\+(.+?) batchf, (.+?) threads\} -> \{(.+?)ms, (.+?)ms preproc, (.+?) iters, (.+?) modularity\} (.+)/m;
 
 
 
@@ -60,15 +60,14 @@ function readLogLine(ln, data, state) {
     state.size  = parseFloat(size);
   }
   else if (RRESLT.test(ln)) {
-    var [, batch_deletions_size, batch_insertions_size, num_threads, preprocessing_time, time, iterations, passes, modularity, technique] = RRESLT.exec(ln);
+    var [, batch_deletions_fraction, batch_insertions_fraction, num_threads, time, preprocessing_time, iterations, modularity, technique] = RRESLT.exec(ln);
     data.get(state.graph).push(Object.assign({}, state, {
-      batch_deletions_size:  parseFloat(batch_deletions_size),
-      batch_insertions_size: parseFloat(batch_insertions_size),
+      batch_deletions_fraction:  parseFloat(batch_deletions_fraction),
+      batch_insertions_fraction: parseFloat(batch_insertions_fraction),
       num_threads: parseFloat(num_threads),
-      preprocessing_time:    parseFloat(preprocessing_time),
       time:        parseFloat(time),
+      preprocessing_time: parseFloat(preprocessing_time),
       iterations:  parseFloat(iterations),
-      passes:      parseFloat(passes),
       modularity:  parseFloat(modularity),
       technique,
     }));
@@ -94,8 +93,10 @@ function readLog(pth) {
 
 function processCsv(data) {
   var a = [];
-  for (var rows of data.values())
-    a.push(...rows);
+  for (var rows of data.values()) {
+    for (var row of rows)
+      a.push(row);
+  }
   return a;
 }
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-src="rak-communities-openmp-dynamic"
+src="rak-communities-cuda-dynamic"
 ulimit -s unlimited
 
 # Download program
@@ -32,6 +32,3 @@ export BATCH_DELETIONS_END="0.0128"
 export BATCH_DELETIONS_STEP="*=2"
 export NUM_THREADS_MODE="with-batch"
 # ./main.sh "--weak-scaling"
-
-# Signal completion
-curl -X POST "https://maker.ifttt.com/trigger/puzzlef/with/key/${IFTTT_KEY}?value1=$src"
