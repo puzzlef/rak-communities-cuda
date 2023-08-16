@@ -132,7 +132,7 @@ void runExperiment(const G& x) {
   runBatches(x, rnd, [&](const auto& y, auto deletionsf, const auto& deletions, auto insertionsf, const auto& insertions, int sequence, int epoch) {
     double M = edgeWeightOmp(y)/2;
     // Adjust number of threads.
-    runThreads(epoch, [&](int numThreads) {
+    runThreads([&](int numThreads) {
       auto flog = [&](const auto& ans, const char *technique) {
         glog(ans, technique, numThreads, y, M, deletionsf, insertionsf);
       };
