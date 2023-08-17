@@ -113,7 +113,6 @@ void runExperiment(const G& x) {
   random_device dev;
   default_random_engine rnd(dev());
   int repeat  = REPEAT_METHOD;
-  int retries = 5;
   vector<K> *init = nullptr;
   double M = edgeWeightOmp(x)/2;
   // Follow a specific result logging format, which can be easily parsed later.

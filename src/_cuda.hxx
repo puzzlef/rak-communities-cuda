@@ -39,6 +39,7 @@ using std::exit;
 #define GRID_LIMIT_REDUCE  1024
 
 
+#pragma region METHODS
 // Sizes
 inline int BLOCK_SIZE(size_t N, int BLIM) noexcept {
   return int(min(N, size_t(BLIM)));
@@ -55,7 +56,15 @@ inline int GRID_SIZE(size_t N, int B, int GLIM) noexcept {
 // Log error if CUDA function call fails.
 
 #ifndef TRY_CUDA
-void tryCuda(cudaError err, const char* exp, const char* func, int line, const char* file) {
+/**
+ * Log error on CUDA function call failure.
+ * @param err error code
+ * @param exp expression string
+ * @param func current function name
+ * @param line current line number
+ * @param file current file name
+ */
+void tryFailedCuda(cudaError err, const char* exp, const char* func, int line, const char* file) {
   if (err == cudaSuccess) return;
   fprintf(stderr,
     "%s: %s\n"
@@ -1216,16 +1225,17 @@ void liNormCuW(T *a, const T *x, const T *y, size_t N) {
 // SCAN
 // ----
 
-template <class T>
-void exclusiveScanCuW(T *a, const T *x, size_t N) {
-  ASSERT(a && x);
-  thrust::device_ptr<T> xD((T*) x), aD(a);
-  thrust::exclusive_scan(xD, xD+N, aD);
-}
+// template <class T>
+// void exclusiveScanCuW(T *a, const T *x, size_t N) {
+//   ASSERT(a && x);
+//   thrust::device_ptr<T> xD((T*) x), aD(a);
+//   thrust::exclusive_scan(xD, xD+N, aD);
+// }
 
-template <class T>
-void inclusiveScanCuW(T *a, const T *x, size_t N) {
-  ASSERT(a && x);
-  thrust::device_ptr<T> xD((T*) x), aD(a);
-  thrust::inclusive_scan(xD, xD+N, aD);
-}
+// template <class T>
+// void inclusiveScanCuW(T *a, const T *x, size_t N) {
+//   ASSERT(a && x);
+//   thrust::device_ptr<T> xD((T*) x), aD(a);
+//   thrust::inclusive_scan(xD, xD+N, aD);
+// }
+#pragma endregion

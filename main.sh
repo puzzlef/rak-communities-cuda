@@ -51,7 +51,7 @@ DEFINES=(""
 )
 
 # Run
-nvcc ${DEFINES[*]} -std=c++17 -O3 -Xcompiler -fopenmp main.cxx
+nvcc ${DEFINES[*]} -std=c++17 -O3 -Xcompiler -fopenmp main.cu
 # stdbuf --output=L ./a.out ~/Data/soc-Epinions1.mtx   0 0 2>&1 | tee -a "$out"
 stdbuf --output=L ./a.out ~/Data/indochina-2004.mtx  0 0 2>&1 | tee -a "$out"
 stdbuf --output=L ./a.out ~/Data/uk-2002.mtx         0 0 2>&1 | tee -a "$out"
@@ -68,4 +68,4 @@ stdbuf --output=L ./a.out ~/Data/kmer_A2a.mtx        1 0 2>&1 | tee -a "$out"
 stdbuf --output=L ./a.out ~/Data/kmer_V1r.mtx        1 0 2>&1 | tee -a "$out"
 
 # Signal completion
-curl -X POST "https://maker.ifttt.com/trigger/puzzlef/with/key/${IFTTT_KEY}?value1=$src$1"
+# curl -X POST "https://maker.ifttt.com/trigger/puzzlef/with/key/${IFTTT_KEY}?value1=$src$1"
