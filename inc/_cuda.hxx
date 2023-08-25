@@ -462,7 +462,7 @@ inline void fillValueCuW(T *a, size_t N, T v) {
 
 #pragma region SUM
 /**
- * Compute the sum of values in an array [device function].
+ * Compute the sum of values in an array, from a thread [device function].
  * @param x array to sum
  * @param N size of array
  * @param i start index
@@ -470,7 +470,7 @@ inline void fillValueCuW(T *a, size_t N, T v) {
  * @returns sum of values in x[i..DI..N]
  */
 template <class T>
-inline T __device__ sumValuesCud(const T *x, size_t N, size_t i, size_t DI) {
+inline T __device__ sumValuesThreadCud(const T *x, size_t N, size_t i, size_t DI) {
   ASSERT(x && DI);
   T a = T();
   for (; i<N; i+=DI)
@@ -486,7 +486,7 @@ inline T __device__ sumValuesCud(const T *x, size_t N, size_t i, size_t DI) {
  * @param i thread index
  */
 template <class T>
-inline void __device__ sumValuesBlockCudU(T *a, size_t N, size_t i) {
+inline void __device__ sumValuesBlockReduceCudU(T *a, size_t N, size_t i) {
   ASSERT(a);
   // Reduce values in a to a[0] in reverse binary tree fashion.
   for (; N>1;) {
@@ -511,11 +511,11 @@ void __global__ sumValuesCukW(T *a, const T *x, size_t N) {
   DEFINE_CUDA(t, b, B, G);
   __shared__ T cache[CACHE];
   // Store per-thread sum in shared cache (for further reduction).
-  cache[t] = sumValuesCud(x, N, B*b+t, G*B);
+  cache[t] = sumValuesThreadCud(x, N, B*b+t, G*B);
   // Wait for all threads within the block to finish.
   __syncthreads();
   // Reduce the sum in the cache to a single value in reverse binary tree fashion.
-  sumValuesBlockCudU(cache, B, t);
+  sumValuesBlockReduceCudU(cache, B, t);
   // Store this per-block sum into a partial result array.
   if (t==0) a[b] = cache[0];
 }
@@ -558,7 +558,7 @@ inline void sumValuesInplaceCuW(T *a, const T *x, size_t N) {
 
 #pragma region LI-NORM
 /**
- * Compute the L∞-norm of an array [device function].
+ * Compute the L∞-norm of an array, from a thread [device function].
  * @param x array to compute on
  * @param N size of array
  * @param i start index
@@ -566,7 +566,7 @@ inline void sumValuesInplaceCuW(T *a, const T *x, size_t N) {
  * @returns ||x[i..DI..N]||_∞
  */
 template <class T>
-inline T __device__ liNormCud(const T *x, size_t N, size_t i, size_t DI) {
+inline T __device__ liNormThreadCud(const T *x, size_t N, size_t i, size_t DI) {
   ASSERT(x && DI);
   T a = T();  // TODO: use numeric_limits<T>::min()?
   for (; i<N; i+=DI)
@@ -582,7 +582,7 @@ inline T __device__ liNormCud(const T *x, size_t N, size_t i, size_t DI) {
  * @param i thread index
  */
 template <class T>
-inline void __device__ liNormBlockCudU(T *a, size_t N, size_t i) {
+inline void __device__ liNormBlockReduceCudU(T *a, size_t N, size_t i) {
   ASSERT(a);
   // Reduce values in a to a[0] in reverse binary tree fashion.
   for (; N>1;) {
@@ -607,11 +607,11 @@ void __global__ liNormCukW(T *a, const T *x, size_t N) {
   DEFINE_CUDA(t, b, B, G);
   __shared__ T cache[CACHE];
   // Store per-thread L∞-norm in shared cache (for further reduction).
-  cache[t] = liNormCud(x, N, B*b+t, G*B);
+  cache[t] = liNormThreadCud(x, N, B*b+t, G*B);
   // Wait for all threads within the block to finish.
   __syncthreads();
   // Reduce the L∞-norms in cache to a single value in reverse binary tree fashion.
-  liNormBlockCudU(cache, B, t);
+  liNormBlockReduceCudU(cache, B, t);
   // Store this per-block L∞-norm into a partial result array.
   if (t==0) a[b] = cache[0];
 }
@@ -654,7 +654,7 @@ inline void liNormInplaceCuW(T *a, const T *x, size_t N) {
 
 #pragma region LI-NORM DELTA
 /**
- * Compute L∞-norm of the difference between two arrays [device function].
+ * Compute L∞-norm of the difference between two arrays, from a thread [device function].
  * @param x first array
  * @param y second array
  * @param N size of each array
@@ -663,7 +663,7 @@ inline void liNormInplaceCuW(T *a, const T *x, size_t N) {
  * @returns ||x[i..DI..N] - y[i..DI..N]||_∞
  */
 template <class T>
-inline T __device__ liNormDeltaCud(const T *x, const T *y, size_t N, size_t i, size_t DI) {
+inline T __device__ liNormDeltaThreadCud(const T *x, const T *y, size_t N, size_t i, size_t DI) {
   ASSERT(x && y && DI);
   T a = T();  // TODO: use numeric_limits<T>::min()?
   for (; i<N; i+=DI)
@@ -686,11 +686,11 @@ void __global__ liNormDeltaCukW(T *a, const T *x, const T *y, size_t N) {
   DEFINE_CUDA(t, b, B, G);
   __shared__ T cache[CACHE];
   // Store per-thread delta L∞-norm in shared cache (for further reduction).
-  cache[t] = liNormDeltaCud(x, y, N, B*b+t, G*B);
+  cache[t] = liNormDeltaThreadCud(x, y, N, B*b+t, G*B);
   // Wait for all threads within the block to finish.
   __syncthreads();
   // Reduce the delta L∞-norms in cache to a single value in reverse binary tree fashion.
-  liNormBlockCudU(cache, B, t);
+  liNormBlockReduceCudU(cache, B, t);
   // Store this per-block delta L∞-norm into a partial result array.
   if (t==0) a[b] = cache[0];
 }
