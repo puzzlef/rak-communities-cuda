@@ -220,7 +220,7 @@ inline void __device__ unusedCuda(T&&) {}
   UNUSED_CUDA(t); \
   UNUSED_CUDA(b); \
   UNUSED_CUDA(B); \
-  UNUSED_CUDA(G);
+  UNUSED_CUDA(G)
 
 
 /**
@@ -250,7 +250,7 @@ inline void __device__ unusedCuda(T&&) {}
   UNUSED_CUDA(BX); \
   UNUSED_CUDA(BY); \
   UNUSED_CUDA(GX); \
-  UNUSED_CUDA(GY);
+  UNUSED_CUDA(GY)
 #endif
 #pragma endregion
 
