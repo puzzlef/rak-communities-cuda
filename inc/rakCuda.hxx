@@ -157,7 +157,7 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
  * @param NE end vertex (exclusive)
  */
 template <class O, class K, class V, class W, class F>
-inline void rakMoveIterationThreadCuU(uint64_t *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
   const int B = blockSizeCu(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
   const int G = gridSizeCu (NE-NB, B, GRID_LIMIT_MAP_CUDA);
   rakMoveIterationThreadCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
@@ -364,7 +364,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
     gatherValuesW(vaffc, vaff, ks);
     TRY_CUDA( cudaMemcpy(vaffD, vaffc.data(), N * sizeof(F), cudaMemcpyHostToDevice) );
     // Perform RAK iterations.
-    mark([&]() { l = rakLoopCu(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
+    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
   }, o.repeat);
   // Obtain final community membership.
   TRY_CUDA( cudaMemcpy(vcomc.data(), vcomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
@@ -418,7 +418,7 @@ inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const 
 template <class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
-  return rakInvokeCuda<true, FLAG>(y, q, o, fm);
+  return rakInvokeCuda<FLAG>(y, q, o, fm);
 }
 #pragma endregion
 #pragma endregion
