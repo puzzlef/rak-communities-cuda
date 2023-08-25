@@ -432,7 +432,7 @@ inline RakResult<K> rakStatic(const G& x, const vector<K>* q=nullptr, const RakO
  */
 template <class FLAG=char, class G, class K>
 inline RakResult<K> rakStaticOmp(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
-  auto fm = [](auto& vaff) { fillValueU(vaff, FLAG(1)); };
+  auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
   auto fa = [](auto u) { return true; };
   return rakMainOmp<FLAG>(x, q, o, fm, fa);
 }
