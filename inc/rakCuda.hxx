@@ -276,7 +276,7 @@ inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const
  * @returns number of low-degree vertices
  */
 template <class G, class K>
-inline K rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
+inline size_t rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
   K SWITCH_DEGREE = 64;  // Switch to block-per-vertex approach if degree >= SWITCH_DEGREE
   K SWITCH_LIMIT  = 64;  // Avoid switching if number of vertices < SWITCH_LIMIT
   size_t N = ks.size();
@@ -286,7 +286,97 @@ inline K rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
   size_t n = count_if(kb, ke, ft);
   if (n   < SWITCH_LIMIT) n = 0;
   if (N-n < SWITCH_LIMIT) n = N;
-  return K(n);
+  return n;
+}
+#pragma endregion
+
+
+
+
+#pragma region ENVIRONMENT SETUP
+/**
+ * Setup and perform the RAK algorithm.
+ * @tparam FLAG flag type for tracking affected vertices
+ * @param x original graph
+ * @param q initial community each vertex belongs to
+ * @param o rak options
+ * @param fm marking affected vertices / preprocessing to be performed (vaff)
+ * @returns rak result
+ */
+template <class FLAG=char, class G, class K, class FM>
+inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
+  using V = typename G::edge_value_type;
+  using W = RAK_WEIGHT_TYPE;
+  using O = uint32_t;
+  using F = FLAG;
+  size_t S = x.span();
+  size_t N = x.order();
+  size_t M = x.size();
+  int    R = reduceSizeCu(N);
+  int    L = o.maxIterations, l = 0;
+  double E = o.tolerance;
+  vector<O> xoff(N+1);
+  vector<K> xedg(M);
+  vector<V> xwei(M);
+  vector<K> vcom(S), vcomc(N);
+  vector<F> vaff(S), vaffc(N);
+  O *xoffD = nullptr;
+  K *xedgD = nullptr;
+  V *xweiD = nullptr;
+  K *vcomD = nullptr;
+  F *vaffD = nullptr;
+  K *bufkD = nullptr;
+  W *bufwD = nullptr;
+  uint64_cu *ncomD = nullptr;
+  // Partition vertices into low-degree and high-degree sets.
+  vector<K> ks = vertexKeys(x);
+  size_t NL = rakPartitionVerticesCudaU(ks, x);
+  // Obtain data for CSR.
+  csrCreateOffsetsW (xoff, x, ks);
+  csrCreateEdgeKeysW(xedg, x, ks);
+  csrCreateEdgeValuesW(xwei, x, ks);
+  // Obtain initial community membership.
+  if (q) gatherValuesW(vcomc, *q, ks);
+  // Allocate device memory.
+  TRY_CUDA( cudaSetDeviceFlags(cudaDeviceMapHost) );
+  TRY_CUDA( cudaMalloc(&xoffD, (N+1) * sizeof(O)) );
+  TRY_CUDA( cudaMalloc(&xedgD,  M    * sizeof(K)) );
+  TRY_CUDA( cudaMalloc(&xweiD,  M    * sizeof(V)) );
+  TRY_CUDA( cudaMalloc(&vcomD,  N    * sizeof(K)) );
+  TRY_CUDA( cudaMalloc(&vaffD,  N    * sizeof(F)) );
+  TRY_CUDA( cudaMalloc(&bufkD, (2*M) * sizeof(K)) );
+  TRY_CUDA( cudaMalloc(&bufwD, (2*M) * sizeof(W)) );
+  TRY_CUDA( cudaMalloc(&ncomD,  1    * sizeof(uint64_cu)) );
+  // Copy data to device.
+  TRY_CUDA( cudaMemcpy(xoffD, xoff.data(), (N+1) * sizeof(O), cudaMemcpyHostToDevice) );
+  TRY_CUDA( cudaMemcpy(xedgD, xedg.data(),  M    * sizeof(K), cudaMemcpyHostToDevice) );
+  TRY_CUDA( cudaMemcpy(xweiD, xwei.data(),  M    * sizeof(V), cudaMemcpyHostToDevice) );
+  // Perform RAK algorithm on device.
+  float tm = 0;
+  float t  = measureDurationMarked([&](auto mark) {
+    // Setup initial community membership.
+    if (q) TRY_CUDA( cudaMemcpy(vcomD, vcomc.data(), N * sizeof(K), cudaMemcpyHostToDevice) );
+    else   rakInitializeCuW(vcomD, K(), K(N));
+    // Mark initial affected vertices.
+    tm += mark([&]() { fm(vaff); });
+    gatherValuesW(vaffc, vaff, ks);
+    TRY_CUDA( cudaMemcpy(vaffD, vaffc.data(), N * sizeof(F), cudaMemcpyHostToDevice) );
+    // Perform RAK iterations.
+    mark([&]() { l = rakLoopCu(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
+  }, o.repeat);
+  // Obtain final community membership.
+  TRY_CUDA( cudaMemcpy(vcomc.data(), vcomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
+  scatterValuesW(vcom, vcomc, ks);
+  // Free device memory.
+  TRY_CUDA( cudaFree(xoffD) );
+  TRY_CUDA( cudaFree(xedgD) );
+  TRY_CUDA( cudaFree(xweiD) );
+  TRY_CUDA( cudaFree(vcomD) );
+  TRY_CUDA( cudaFree(vaffD) );
+  TRY_CUDA( cudaFree(bufkD) );
+  TRY_CUDA( cudaFree(bufwD) );
+  TRY_CUDA( cudaFree(ncomD) );
+  return {vcom, l, t, tm/o.repeat};
 }
 #pragma endregion
 #pragma endregion
