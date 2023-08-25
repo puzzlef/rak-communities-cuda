@@ -328,7 +328,7 @@ inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<F>& vaff, vector<vect
 
 #pragma region MAIN
 /**
- * Setup and perform the Louvain algorithm.
+ * Setup and perform the RAK algorithm.
  * @param x original graph
  * @param q initial community each vertex belongs to
  * @param o rak options
@@ -362,7 +362,7 @@ inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o,
 
 #ifdef OPENMP
 /**
- * Setup and perform the Louvain algorithm.
+ * Setup and perform the RAK algorithm.
  * @param x original graph
  * @param q initial community each vertex belongs to
  * @param o rak options
