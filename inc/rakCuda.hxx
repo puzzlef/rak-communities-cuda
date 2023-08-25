@@ -93,5 +93,137 @@ inline void __device__ rakMarkNeighborsCudU(F *vaff, const O *xoff, const K *xed
     vaff[v] = F(1);  // TODO: Use two (synchronous) buffers?
   }
 }
+
+
+/**
+ * Move each vertex to its best community, using thread-per-vertex approach [kernel].
+ * @param ncom number of changed vertices (updated)
+ * @param vcom community each vertex belongs to (updated)
+ * @param vaff vertex affected flags (updated)
+ * @param bufk buffer for hashtable keys (updated)
+ * @param bufw buffer for hashtable values (updated)
+ * @param xoff offsets of original graph
+ * @param xedg edge keys of original graph
+ * @param xwei edge values of original graph
+ * @param NB begin vertex (inclusive)
+ * @param NE end vertex (exclusive)
+ */
+template <class O, class K, class V, class W, class F>
+void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+  DEFINE_CUDA(t, b, B, G);
+  uint64_cu ncomt = 0;
+  for (K u=NB+B*b+t; u<NE; u+=G*B) {
+    if (!vaff[u]) continue;
+    // Scan communities connected to u.
+    K d = vcom[u];
+    size_t EO = xoff[u];
+    size_t EN = xoff[u+1] - xoff[u];
+    size_t H  = nextPow2Cud(EN) - 1;
+    size_t T  = nextPow2Cud(H)  - 1;
+    K *hk = bufk + 2*EO;
+    W *hv = bufw + 2*EO;
+    hashtableClearCudW(hk, hv, H, 0, 1);
+    rakScanCommunitiesCudU(hk, hv, H, T, xoff, xedg, xwei, u, vcom, 0, 1);
+    // Find best community for u.
+    hashtableMaxCudU(hk, hv, H, 0, 1);
+    vaff[u] = F(0);         // Mark u as unaffected (TODO: Use two buffers?)
+    if  (!hk[0]) continue;  // No community found
+    K c = hk[0] - 1;        // Best community
+    if (c==d) continue;
+    // Change community of u.
+    vcom[u] = c; ++ncomt;
+    rakMarkNeighborsCudU(vaff, xoff, xedg, u, 0, 1);
+  }
+  atomicAdd(ncom, ncomt);
+}
+
+
+/**
+ * Move each vertex to its best community, using thread-per-vertex approach.
+ * @param ncom number of changed vertices (updated)
+ * @param vcom community each vertex belongs to (updated)
+ * @param vaff vertex affected flags (updated)
+ * @param bufk buffer for hashtable keys (updated)
+ * @param bufw buffer for hashtable values (updated)
+ * @param xoff offsets of original graph
+ * @param xedg edge keys of original graph
+ * @param xwei edge values of original graph
+ * @param NB begin vertex (inclusive)
+ * @param NE end vertex (exclusive)
+ */
+template <class O, class K, class V, class W, class F>
+inline void rakMoveIterationThreadCuU(uint64_t *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+  const int B = blockSizeCu(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
+  const int G = gridSizeCu (NE-NB, B, GRID_LIMIT_MAP_CUDA);
+  rakMoveIterationThreadCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+}
+
+
+/**
+ * Move each vertex to its best community, using block-per-vertex approach [kernel].
+ * @param ncom number of changed vertices (updated)
+ * @param vcom community each vertex belongs to (updated)
+ * @param vaff vertex affected flags (updated)
+ * @param bufk buffer for hashtable keys (updated)
+ * @param bufw buffer for hashtable values (updated)
+ * @param xoff offsets of original graph
+ * @param xedg edge keys of original graph
+ * @param xwei edge values of original graph
+ * @param NB begin vertex (inclusive)
+ * @param NE end vertex (exclusive)
+ */
+template <class O, class K, class V, class W, class F>
+void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+  DEFINE_CUDA(t, b, B, G);
+  uint64_cu ncomb = 0;
+  for (K u=NB+b; u<NE; u+=G) {
+    if (!vaff[u]) continue;
+    // Scan communities connected to u.
+    K d = vcom[u];
+    size_t EO = xoff[u];
+    size_t EN = xoff[u+1] - xoff[u];
+    size_t H  = nextPow2Cud(EN) - 1;
+    size_t T  = nextPow2Cud(H)  - 1;
+    K *hk = bufk + 2*EO;
+    W *hv = bufw + 2*EO;
+    hashtableClearCudW(hk, hv, H, t, B);
+    __syncthreads();
+    rakScanCommunitiesCudU<false, true>(hk, hv, H, T, xoff, xedg, xwei, u, vcom, t, B);
+    __syncthreads();
+    // Find best community for u.
+    hashtableMaxCudU<true>(hk, hv, H, t, B);
+    __syncthreads();
+    if (t==0) vaff[u] = F(0);  // Mark u as unaffected (TODO: Use two buffers?)
+    if  (!hk[0]) continue;     // No community found
+    K c = hk[0] - 1;           // Best community
+    if (c==d) continue;
+    // Change community of u.
+    if (t==0) vcom[u] = c;
+    if (t==0) ++ncomb;
+    rakMarkNeighborsCudU(vaff, xoff, xedg, u, t, B);
+  }
+  if (t==0) atomicAdd((uint64_cu*) ncom, ncomb);
+}
+
+
+/**
+ * Move each vertex to its best community, using block-per-vertex approach.
+ * @param ncom number of changed vertices (output)
+ * @param vcom community each vertex belongs to (updated)
+ * @param vaff vertex affected flags (updated)
+ * @param bufk buffer for hashtable keys (updated)
+ * @param bufw buffer for hashtable values (updated)
+ * @param xoff offsets of original graph
+ * @param xedg edge keys of original graph
+ * @param xwei edge values of original graph
+ * @param NB begin vertex (inclusive)
+ * @param NE end vertex (exclusive)
+ */
+template <bool DYNAMIC=false, class O, class K, class V, class W, class F>
+inline void rakMoveIterationBlockCuU(uint64_t *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+  const int B = blockSizeCu<true>(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
+  const int G = gridSizeCu <true>(NE-NB, B, GRID_LIMIT_MAP_CUDA);
+  rakMoveIterationBlockCukU<DYNAMIC><<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+}
 #pragma endregion
 #pragma endregion
