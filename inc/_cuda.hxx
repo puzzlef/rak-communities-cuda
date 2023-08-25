@@ -462,7 +462,7 @@ inline void fillValueCuW(T *a, size_t N, T v) {
 
 #pragma region SUM
 /**
- * Compute the sum of values in a array [device function].
+ * Compute the sum of values in an array [device function].
  * @param x array to sum
  * @param N size of array
  * @param i start index
@@ -480,7 +480,7 @@ inline T __device__ sumValuesCud(const T *x, size_t N, size_t i, size_t DI) {
 
 
 /**
- * Compute the sum of values in a array, within a block [device function].
+ * Compute the sum of values in an array, within a block [device function].
  * @param a array to sum (updated, a[0] is the result)
  * @param N size of array
  * @param i thread index
@@ -499,7 +499,7 @@ inline void __device__ sumValuesBlockCudU(T *a, size_t N, size_t i) {
 
 
 /**
- * Compute the sum of values in a array [kernel].
+ * Compute the sum of values in an array [kernel].
  * @tparam CACHE size of shared memory cache
  * @param a partial result array (output)
  * @param x array to sum
@@ -522,7 +522,7 @@ void __global__ sumValuesCukW(T *a, const T *x, size_t N) {
 
 
 /**
- * Compute the sum of values in a array, using memcpy approach.
+ * Compute the sum of values in an array, using memcpy approach.
  * @param a partial result array (output)
  * @param x array to sum
  * @param N size of array to sum
@@ -537,7 +537,7 @@ inline void sumValuesMemcpyCuW(T *a, const T *x, size_t N) {
 
 
 /**
- * Compute the sum of values in a array, using inplace approach.
+ * Compute the sum of values in an array, using inplace approach.
  * @param a result array (output, a[0] is the result)
  * @param x array to sum
  * @param N size of array to sum
@@ -558,7 +558,7 @@ inline void sumValuesInplaceCuW(T *a, const T *x, size_t N) {
 
 #pragma region LI-NORM
 /**
- * Compute the L∞-norm of a array [device function].
+ * Compute the L∞-norm of an array [device function].
  * @param x array to compute on
  * @param N size of array
  * @param i start index
@@ -576,7 +576,7 @@ inline T __device__ liNormCud(const T *x, size_t N, size_t i, size_t DI) {
 
 
 /**
- * Compute the L∞-norm of a array, within a block [device function].
+ * Compute the L∞-norm of an array, within a block [device function].
  * @param a array to compute on (updated, a[0] is the result)
  * @param N size of array
  * @param i thread index
@@ -595,7 +595,7 @@ inline void __device__ liNormBlockCudU(T *a, size_t N, size_t i) {
 
 
 /**
- * Compute the L∞-norm of a array [kernel].
+ * Compute the L∞-norm of an array [kernel].
  * @tparam CACHE size of shared memory cache
  * @param a partial result array (output)
  * @param x array to compute on
@@ -618,7 +618,7 @@ void __global__ liNormCukW(T *a, const T *x, size_t N) {
 
 
 /**
- * Compute the L∞-norm of a array, using memcpy approach.
+ * Compute the L∞-norm of an array, using memcpy approach.
  * @param a partial result array (output)
  * @param x array to compute on
  * @param N size of array to compute on
@@ -633,7 +633,7 @@ inline void liNormMemcpyCuW(T *a, const T *x, size_t N) {
 
 
 /**
- * Compute the L∞-norm of a array, using inplace approach.
+ * Compute the L∞-norm of an array, using inplace approach.
  * @param a result array (output, a[0] is the result)
  * @param x array to compute on
  * @param N size of array to compute on
