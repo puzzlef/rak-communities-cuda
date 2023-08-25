@@ -73,5 +73,25 @@ inline void __device__ rakScanCommunitiesCudU(K *hk, W *hv, size_t H, size_t T, 
     hashtableAccumulateCudU<BLOCK>(hk, hv, H, T, c+1, w);
   }
 }
+
+
+/**
+ * Mark out-neighbors of a vertex as affected [device function].
+ * @param vaff vertex affected flags (updated)
+ * @param xoff offsets of original graph
+ * @param xedg edge keys of original graph
+ * @param u given vertex
+ * @param i start index
+ * @param DI index stride
+ */
+template <class O, class K, class F>
+inline void __device__ rakMarkNeighborsCudU(F *vaff, const O *xoff, const K *xedg, K u, size_t i, size_t DI) {
+  size_t EO = xoff[u];
+  size_t EN = xoff[u+1] - xoff[u];
+  for (; i<EN; i+=DI) {
+    K v = xedg[EO+i];
+    vaff[v] = F(1);  // TODO: Use two (synchronous) buffers?
+  }
+}
 #pragma endregion
 #pragma endregion
