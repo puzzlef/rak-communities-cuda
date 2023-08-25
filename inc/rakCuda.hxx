@@ -219,11 +219,46 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
  */
-template <bool DYNAMIC=false, class O, class K, class V, class W, class F>
-inline void rakMoveIterationBlockCuU(uint64_t *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+template <class O, class K, class V, class W, class F>
+inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
   const int B = blockSizeCu<true>(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
   const int G = gridSizeCu <true>(NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationBlockCukU<DYNAMIC><<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+  rakMoveIterationBlockCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+}
+#pragma endregion
+
+
+
+
+#pragma region COMPUTATION LOOP
+/**
+ * Perform RAK iterations.
+ * @param ncom number of changed vertices (updated)
+ * @param vcom community each vertex belongs to (updated)
+ * @param vaff vertex affected flags (updated)
+ * @param bufk buffer for hashtable keys (updated)
+ * @param bufw buffer for hashtable values (updated)
+ * @param xoff offsets of original graph
+ * @param xedg edge keys of original graph
+ * @param xwei edge values of original graph
+ * @param N number of vertices
+ * @param NL number of low-degree vertices
+ * @param E tolerance for convergence [0.05]
+ * @param L maximum number of iterations [20]
+ * @returns number of iterations performed
+ */
+template <class O, class K, class V, class W, class F>
+inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
+  int l = 0;
+  uint64_cu n = 0;
+  while (l<L) {
+    fillValueCuW(ncom, 1, uint64_cu());
+    rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL);
+    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N); ++l;
+    TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
+    if (double(n)/N <= E) break;
+  }
+  return l;
 }
 #pragma endregion
 #pragma endregion
