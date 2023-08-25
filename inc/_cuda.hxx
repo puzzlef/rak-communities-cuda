@@ -22,6 +22,17 @@ using std::exit;
 
 
 
+#pragma region TYPES
+/** 64-bit signed integer (CUDA specific). */
+typedef long long int          int64_cu;
+/** 64-bit unsigned integer (CUDA specific). */
+typedef unsigned long long int uint64_cu;
+// - https://stackoverflow.com/a/32862733/1413259
+#pragma endregion
+
+
+
+
 #pragma region KEYWORDS
 #ifndef __global__
 /** CUDA kernel function. */
