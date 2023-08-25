@@ -347,6 +347,21 @@ inline double __device__ ceilDivCud<double>(double x, double y) {
 
 
 
+#pragma region POW2
+/**
+ * Get the next power of 2 of a value [device function].
+ * @param x the value
+ * @returns next power of 2 of x
+ */
+template <class T>
+inline T __device__ nextPow2Cud(T x) {
+  return T(1) << (__clz(T()) - __clz(x));
+}
+#pragma endregion
+
+
+
+
 #pragma region COPY
 /**
  * Copy values from one array to another [device function].
