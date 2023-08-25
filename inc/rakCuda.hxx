@@ -1,11 +1,14 @@
 #pragma once
 #include <vector>
+#include <algorithm>
 #include <cstdint>
 #include "_main.hxx"
 #include "rak.hxx"
 #include "hashtableCuda.hxx"
 
 using std::vector;
+using std::count_if;
+using std::partition;
 
 
 
@@ -259,6 +262,31 @@ inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const
     if (double(n)/N <= E) break;
   }
   return l;
+}
+#pragma endregion
+
+
+
+
+#pragma region PARTITION
+/**
+ * Partition vertices into low-degree and high-degree sets.
+ * @param ks vertex keys (updated)
+ * @param x original graph
+ * @returns number of low-degree vertices
+ */
+template <class G, class K>
+inline K rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
+  K SWITCH_DEGREE = 64;  // Switch to block-per-vertex approach if degree >= SWITCH_DEGREE
+  K SWITCH_LIMIT  = 64;  // Avoid switching if number of vertices < SWITCH_LIMIT
+  size_t N = ks.size();
+  auto  kb = ks.begin(), ke = ks.end();
+  auto  ft = [&](K v) { return x.degree(v) < SWITCH_DEGREE; };
+  partition(kb, ke, ft);
+  size_t n = count_if(kb, ke, ft);
+  if (n   < SWITCH_LIMIT) n = 0;
+  if (N-n < SWITCH_LIMIT) n = N;
+  return K(n);
 }
 #pragma endregion
 #pragma endregion
