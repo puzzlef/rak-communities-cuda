@@ -276,8 +276,8 @@ inline pair<K, W> rakChooseCommunity(const G& x, K u, const vector<K>& vcom, con
  * @param x original graph
  * @returns number of changed vertices
  */
-template <class G, class K, class W, class B>
-inline size_t rakMoveIterationW(vector<K>& vcom, vector<B>& vaff, vector<K>& vcs, vector<W>& vcout, const G& x) {
+template <class G, class K, class W, class F>
+inline size_t rakMoveIterationW(vector<K>& vcom, vector<F>& vaff, vector<K>& vcs, vector<W>& vcout, const G& x) {
   size_t a = 0;
   x.forEachVertexKey([&](auto u) {
     if (!vaff[u]) return;
@@ -285,8 +285,8 @@ inline size_t rakMoveIterationW(vector<K>& vcom, vector<B>& vaff, vector<K>& vcs
     rakClearScanW(vcs, vcout);
     rakScanCommunitiesW(vcs, vcout, x, u, vcom);
     auto [c, w] = rakChooseCommunity(x, u, vcom, vcs, vcout);
-    if (c && c!=d) { vcom[u] = c; ++a; x.forEachEdgeKey(u, [&](auto v) { vaff[v] = B(1); }); }
-    vaff[u] = B(0);
+    if (c && c!=d) { vcom[u] = c; ++a; x.forEachEdgeKey(u, [&](auto v) { vaff[v] = F(1); }); }
+    vaff[u] = F(0);
   });
   return a;
 }
@@ -302,8 +302,8 @@ inline size_t rakMoveIterationW(vector<K>& vcom, vector<B>& vaff, vector<K>& vcs
  * @param x original graph
  * @returns number of changed vertices
  */
-template <class G, class K, class W, class B>
-inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<B>& vaff, vector<vector<K>*>& vcs, vector<vector<W>*>& vcout, const G& x) {
+template <class G, class K, class W, class F>
+inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<F>& vaff, vector<vector<K>*>& vcs, vector<vector<W>*>& vcout, const G& x) {
   size_t a = K();
   size_t S = x.span();
   #pragma omp parallel for schedule(dynamic, 2048) reduction(+:a)
@@ -315,8 +315,8 @@ inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<B>& vaff, vector<vect
     rakClearScanW(*vcs[t], *vcout[t]);
     rakScanCommunitiesW(*vcs[t], *vcout[t], x, u, vcom);
     auto [c, w] = rakChooseCommunity(x, u, vcom, *vcs[t], *vcout[t]);
-    if (c && c!=d) { vcom[u] = c; ++a; x.forEachEdgeKey(u, [&](auto v) { vaff[v] = B(1); }); }
-    vaff[u] = B(0);
+    if (c && c!=d) { vcom[u] = c; ++a; x.forEachEdgeKey(u, [&](auto v) { vaff[v] = F(1); }); }
+    vaff[u] = F(0);
   }
   return a;
 }
@@ -339,13 +339,13 @@ template <class FLAG=char, class G, class K, class FM>
 inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
-  using B = FLAG;
+  using F = FLAG;
   int l = 0;
   size_t S = x.span();
   size_t N = x.order();
   vector<K> vcom(S), vcs;
   vector<W> vcout(S);
-  vector<B> vaff(S);
+  vector<F> vaff(S);
   float tm = 0;
   float t  = measureDuration([&]() {
     tm += measureDuration([&]() { fm(vaff); });
@@ -373,13 +373,13 @@ template <class FLAG=char, class G, class K, class FM>
 inline RakResult<K> rakMainOmp(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
-  using B = FLAG;
+  using F = FLAG;
   int l = 0;
   int T = omp_get_max_threads();
   size_t S = x.span();
   size_t N = x.order();
   vector<K> vcom(S);
-  vector<B> vaff(S);
+  vector<F> vaff(S);
   vector<vector<K>*> vcs(T);
   vector<vector<W>*> vcout(T);
   rakAllocateHashtablesW(vcs, vcout, S);
@@ -445,9 +445,9 @@ inline RakResult<K> rakStaticOmp(const G& x, const vector<K>* q=nullptr, const R
  * @param insertions edge insertions for this batch update (undirected)
  * @param vcom community each vertex belongs to
  */
-template <class B, class G, class K, class V>
-inline void rakAffectedVerticesFrontierW(vector<B>& vertices, const G& x, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>& vcom) {
-  fillValueU(vertices, B());
+template <class G, class K, class V, class F>
+inline void rakAffectedVerticesFrontierW(vector<F>& vertices, const G& x, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>& vcom) {
+  fillValueU(vertices, F());
   for (const auto& [u, v] : deletions) {
     if (vcom[u] != vcom[v]) continue;
     vertices[u]  = 1;
@@ -468,9 +468,9 @@ inline void rakAffectedVerticesFrontierW(vector<B>& vertices, const G& x, const 
  * @param insertions edge insertions for this batch update (undirected)
  * @param vcom community each vertex belongs to
  */
-template <class B, class G, class K, class V>
-inline void rakAffectedVerticesFrontierOmpW(vector<B>& vertices, const G& x, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>& vcom) {
-  fillValueOmpU(vertices, B());
+template <class G, class K, class V, class F>
+inline void rakAffectedVerticesFrontierOmpW(vector<F>& vertices, const G& x, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>& vcom) {
+  fillValueOmpU(vertices, F());
   size_t D = deletions.size();
   size_t I = insertions.size();
   #pragma omp parallel for schedule(auto)
