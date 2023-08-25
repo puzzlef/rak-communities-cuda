@@ -1,8 +1,9 @@
 #pragma once
 #include <utility>
+#include <tuple>
 #include <vector>
+#include <cstdint>
 #include "_main.hxx"
-#include "update.hxx"
 #ifdef OPENMP
 #include <omp.h>
 #endif

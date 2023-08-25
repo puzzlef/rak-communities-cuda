@@ -1,4 +1,5 @@
 #pragma once
+#include <tuple>
 #include <vector>
 #include <algorithm>
 #include <cstdint>
@@ -6,6 +7,7 @@
 #include "rak.hxx"
 #include "hashtableCuda.hxx"
 
+using std::tuple;
 using std::vector;
 using std::count_if;
 using std::partition;
@@ -396,6 +398,27 @@ template <class FLAG=char, class G, class K>
 inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
   return rakInvokeCuda<FLAG>(x, q, o, fm);
+}
+#pragma endregion
+
+
+
+
+#pragma region DYNAMIC FRONTIER APPROACH
+/**
+ * Obtain the community membership of each vertex with Dynamic Frontier RAK.
+ * @tparam FLAG flag type for tracking affected vertices
+ * @param y updated graph
+ * @param deletions edge deletions in batch update
+ * @param insertions edge insertions in batch update
+ * @param q initial community each vertex belongs to
+ * @param o rak options
+ * @returns rak result
+ */
+template <class FLAG=char, class G, class K, class V>
+inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
+  auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
+  return rakInvokeCuda<true, FLAG>(y, q, o, fm);
 }
 #pragma endregion
 #pragma endregion
