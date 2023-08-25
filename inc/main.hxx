@@ -16,3 +16,6 @@
 #include "bfs.hxx"
 #include "batch.hxx"
 #include "rak.hxx"
+#ifdef CUDA
+#include "hashtableCuda.hxx"
+#endif
