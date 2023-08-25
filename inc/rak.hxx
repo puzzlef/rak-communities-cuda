@@ -326,7 +326,7 @@ inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<F>& vaff, vector<vect
 
 
 
-#pragma region MAIN
+#pragma region ENVIRONMENT SETUP
 /**
  * Setup and perform the RAK algorithm.
  * @param x original graph
@@ -336,7 +336,7 @@ inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<F>& vaff, vector<vect
  * @returns rak result
  */
 template <class FLAG=char, class G, class K, class FM>
-inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
+inline RakResult<K> rakInvoke(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
   using F = FLAG;
@@ -370,7 +370,7 @@ inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o,
  * @returns rak result
  */
 template <class FLAG=char, class G, class K, class FM>
-inline RakResult<K> rakMainOmp(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
+inline RakResult<K> rakInvokeOmp(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
   using F = FLAG;
@@ -413,7 +413,7 @@ inline RakResult<K> rakMainOmp(const G& x, const vector<K>* q, const RakOptions&
 template <class FLAG=char, class G, class K>
 inline RakResult<K> rakStatic(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueU(vaff, FLAG(1)); };
-  return rakMain<FLAG>(x, q, o, fm);
+  return rakInvoke<FLAG>(x, q, o, fm);
 }
 
 
@@ -428,7 +428,7 @@ inline RakResult<K> rakStatic(const G& x, const vector<K>* q=nullptr, const RakO
 template <class FLAG=char, class G, class K>
 inline RakResult<K> rakStaticOmp(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
-  return rakMainOmp<FLAG>(x, q, o, fm);
+  return rakInvokeOmp<FLAG>(x, q, o, fm);
 }
 #endif
 #pragma endregion
@@ -505,7 +505,7 @@ inline void rakAffectedVerticesFrontierOmpW(vector<F>& vertices, const G& x, con
 template <class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontier(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierW(vaff, y, deletions, insertions, *q); };
-  return rakMain<FLAG>(y, q, o, fm);
+  return rakInvoke<FLAG>(y, q, o, fm);
 }
 
 
@@ -522,7 +522,7 @@ inline RakResult<K> rakDynamicFrontier(const G& y, const vector<tuple<K, K>>& de
 template <class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontierOmp(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
-  return rakMainOmp<FLAG>(y, q, o, fm);
+  return rakInvokeOmp<FLAG>(y, q, o, fm);
 }
 #endif
 #pragma endregion
