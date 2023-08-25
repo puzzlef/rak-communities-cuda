@@ -39,4 +39,39 @@ inline void rakInitializeCuW(K *vcom, K NB, K NE) {
   rakInitializeCukW<<<G, B>>>(vcom, NB, NE);
 }
 #pragma endregion
+
+
+
+
+#pragma region UPDATE COMMUNITY MEMBERSHIPS
+/**
+ * Scan communities connected to a vertex [device function].
+ * @tparam SELF include self-loops?
+ * @tparam BLOCK called from a thread block?
+ * @param hk hashtable keys (updated)
+ * @param hv hashtable values (updated)
+ * @param H capacity of hashtable (prime)
+ * @param T secondary prime (>H)
+ * @param xoff offsets of original graph
+ * @param xedg edge keys of original graph
+ * @param xwei edge values of original graph
+ * @param u given vertex
+ * @param vcom community each vertex belongs to
+ * @param i start index
+ * @param DI index stride
+ */
+template <bool SELF=false, bool BLOCK=false, class O, class K, class V, class W>
+inline void __device__ rakScanCommunitiesCudU(K *hk, W *hv, size_t H, size_t T, const O *xoff, const K *xedg, const V *xwei, K u, const K *vcom, size_t i, size_t DI) {
+  size_t EO = xoff[u];
+  size_t EN = xoff[u+1] - xoff[u];
+  K d = vcom[u];
+  for (; i<EN; i+=DI) {
+    K v = xedg[EO+i];
+    W w = xwei[EO+i];
+    K c = vcom[v];
+    if (!SELF && u==v) continue;
+    hashtableAccumulateCudU<BLOCK>(hk, hv, H, T, c+1, w);
+  }
+}
+#pragma endregion
 #pragma endregion
