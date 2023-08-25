@@ -30,6 +30,8 @@ fi
 : "${NUM_THREADS_BEGIN:=64}"
 : "${NUM_THREADS_END:=64}"
 : "${NUM_THREADS_STEP:=*=2}"
+# CUDA specific parameters
+: "${CUDA_ARCH:=sm_70}"
 # Define macros (dont forget to add here)
 DEFINES=(""
 "-DTYPE=$TYPE"
@@ -51,7 +53,7 @@ DEFINES=(""
 )
 
 # Run
-nvcc ${DEFINES[*]} -std=c++17 -O3 -Xcompiler -fopenmp main.cu
+nvcc ${DEFINES[*]} -arch=$CUDA_ARCH -std=c++17 -O3 -Xcompiler -fopenmp main.cu
 # stdbuf --output=L ./a.out ~/Data/soc-Epinions1.mtx   0 0 2>&1 | tee -a "$out"
 stdbuf --output=L ./a.out ~/Data/indochina-2004.mtx  0 0 2>&1 | tee -a "$out"
 stdbuf --output=L ./a.out ~/Data/uk-2002.mtx         0 0 2>&1 | tee -a "$out"
