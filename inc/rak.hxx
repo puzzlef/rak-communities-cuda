@@ -510,9 +510,7 @@ inline void rakAffectedVerticesFrontierOmpW(vector<B>& vertices, const G& x, con
  */
 template <class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontier(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
-  using B = FLAG;
-  const vector<K>& vcom = *q;
-  auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierW(vaff, y, deletions, insertions, vcom); };
+  auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierW(vaff, y, deletions, insertions, *q); };
   auto fa = [](auto u) { return true; };
   return rakMain<FLAG>(y, q, o, fm, fa);
 }
@@ -530,9 +528,7 @@ inline RakResult<K> rakDynamicFrontier(const G& y, const vector<tuple<K, K>>& de
  */
 template <class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontierOmp(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
-  using B = FLAG;
-  const vector<K>& vcom = *q;
-  auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, vcom); };
+  auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
   auto fa = [](auto u) { return true; };
   return rakMainOmp<FLAG>(y, q, o, fm, fa);
 }
