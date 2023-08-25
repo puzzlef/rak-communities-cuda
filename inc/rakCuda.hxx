@@ -379,4 +379,23 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   return {vcom, l, t, tm/o.repeat};
 }
 #pragma endregion
+
+
+
+
+#pragma region STATIC/NAIVE-DYNAMIC
+/**
+ * Obtain the community membership of each vertex with Static/Naive-dynamic RAK.
+ * @tparam FLAG flag type for tracking affected vertices
+ * @param x original graph
+ * @param q initial community each vertex belongs to
+ * @param o rak options
+ * @returns rak result
+ */
+template <class FLAG=char, class G, class K>
+inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
+  auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
+  return rakInvokeCuda<FLAG>(x, q, o, fm);
+}
+#pragma endregion
 #pragma endregion
