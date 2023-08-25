@@ -17,5 +17,5 @@
 #include "batch.hxx"
 #include "rak.hxx"
 #ifdef CUDA
-#include "hashtableCuda.hxx"
+#include "rakCuda.hxx"
 #endif
