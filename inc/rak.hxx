@@ -274,14 +274,13 @@ inline pair<K, W> rakChooseCommunity(const G& x, K u, const vector<K>& vcom, con
  * @param vcs communities vertex u is linked to (updated)
  * @param vcout total edge weight from vertex u to community C (updated)
  * @param x original graph
- * @param fa is vertex allowed to be updated?
  * @returns number of changed vertices
  */
-template <class G, class K, class W, class B, class FA>
-inline size_t rakMoveIterationW(vector<K>& vcom, vector<B>& vaff, vector<K>& vcs, vector<W>& vcout, const G& x, FA fa) {
+template <class G, class K, class W, class B>
+inline size_t rakMoveIterationW(vector<K>& vcom, vector<B>& vaff, vector<K>& vcs, vector<W>& vcout, const G& x) {
   size_t a = 0;
   x.forEachVertexKey([&](auto u) {
-    if (!fa(u) || !vaff[u]) return;
+    if (!vaff[u]) return;
     K d = vcom[u];
     rakClearScanW(vcs, vcout);
     rakScanCommunitiesW(vcs, vcout, x, u, vcom);
@@ -301,18 +300,17 @@ inline size_t rakMoveIterationW(vector<K>& vcom, vector<B>& vaff, vector<K>& vcs
  * @param vcs communities vertex u is linked to (updated)
  * @param vcout total edge weight from vertex u to community C (updated)
  * @param x original graph
- * @param fa is vertex allowed to be updated?
  * @returns number of changed vertices
  */
-template <class G, class K, class W, class B, class FA>
-inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<B>& vaff, vector<vector<K>*>& vcs, vector<vector<W>*>& vcout, const G& x, FA fa) {
+template <class G, class K, class W, class B>
+inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<B>& vaff, vector<vector<K>*>& vcs, vector<vector<W>*>& vcout, const G& x) {
   size_t a = K();
   size_t S = x.span();
   #pragma omp parallel for schedule(dynamic, 2048) reduction(+:a)
   for (K u=0; u<S; ++u) {
     int t = omp_get_thread_num();
     if (!x.hasVertex(u)) continue;
-    if (!fa(u) || !vaff[u]) continue;
+    if (!vaff[u]) continue;
     K d = vcom[u];
     rakClearScanW(*vcs[t], *vcout[t]);
     rakScanCommunitiesW(*vcs[t], *vcout[t], x, u, vcom);
@@ -335,11 +333,10 @@ inline size_t rakMoveIterationOmpW(vector<K>& vcom, vector<B>& vaff, vector<vect
  * @param q initial community each vertex belongs to
  * @param o rak options
  * @param fm marking affected vertices / preprocessing to be performed (vaff)
- * @param fa is vertex allowed to be updated?
  * @returns rak result
  */
-template <class FLAG=char, class G, class K, class FM, class FA>
-inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o, FM fm, FA fa) {
+template <class FLAG=char, class G, class K, class FM>
+inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
   using B = FLAG;
@@ -355,7 +352,7 @@ inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o,
     if (q) rakInitializeFromW(vcom, x, *q);
     else   rakInitializeW(vcom, x);
     for (l=0; l<o.maxIterations;) {
-      size_t n = rakMoveIterationW(vcom, vaff, vcs, vcout, x, fa); ++l;
+      size_t n = rakMoveIterationW(vcom, vaff, vcs, vcout, x); ++l;
       if (double(n)/N <= o.tolerance) break;
     }
   }, o.repeat);
@@ -370,11 +367,10 @@ inline RakResult<K> rakMain(const G& x, const vector<K>* q, const RakOptions& o,
  * @param q initial community each vertex belongs to
  * @param o rak options
  * @param fm marking affected vertices / preprocessing to be performed (vaff)
- * @param fa is vertex allowed to be updated?
  * @returns rak result
  */
-template <class FLAG=char, class G, class K, class FM, class FA>
-inline RakResult<K> rakMainOmp(const G& x, const vector<K>* q, const RakOptions& o, FM fm, FA fa) {
+template <class FLAG=char, class G, class K, class FM>
+inline RakResult<K> rakMainOmp(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
   using B = FLAG;
@@ -393,7 +389,7 @@ inline RakResult<K> rakMainOmp(const G& x, const vector<K>* q, const RakOptions&
     if (q) rakInitializeFromOmpW(vcom, x, *q);
     else   rakInitializeOmpW(vcom, x);
     for (l=0; l<o.maxIterations;) {
-      size_t n = rakMoveIterationOmpW(vcom, vaff, vcs, vcout, x, fa); ++l;
+      size_t n = rakMoveIterationOmpW(vcom, vaff, vcs, vcout, x); ++l;
       if (double(n)/N <= o.tolerance) break;
     }
   }, o.repeat);
@@ -417,8 +413,7 @@ inline RakResult<K> rakMainOmp(const G& x, const vector<K>* q, const RakOptions&
 template <class FLAG=char, class G, class K>
 inline RakResult<K> rakStatic(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueU(vaff, FLAG(1)); };
-  auto fa = [](auto u) { return true; };
-  return rakMain<FLAG>(x, q, o, fm, fa);
+  return rakMain<FLAG>(x, q, o, fm);
 }
 
 
@@ -433,8 +428,7 @@ inline RakResult<K> rakStatic(const G& x, const vector<K>* q=nullptr, const RakO
 template <class FLAG=char, class G, class K>
 inline RakResult<K> rakStaticOmp(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
-  auto fa = [](auto u) { return true; };
-  return rakMainOmp<FLAG>(x, q, o, fm, fa);
+  return rakMainOmp<FLAG>(x, q, o, fm);
 }
 #endif
 #pragma endregion
@@ -511,8 +505,7 @@ inline void rakAffectedVerticesFrontierOmpW(vector<B>& vertices, const G& x, con
 template <class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontier(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierW(vaff, y, deletions, insertions, *q); };
-  auto fa = [](auto u) { return true; };
-  return rakMain<FLAG>(y, q, o, fm, fa);
+  return rakMain<FLAG>(y, q, o, fm);
 }
 
 
@@ -529,8 +522,7 @@ inline RakResult<K> rakDynamicFrontier(const G& y, const vector<tuple<K, K>>& de
 template <class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontierOmp(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
-  auto fa = [](auto u) { return true; };
-  return rakMainOmp<FLAG>(y, q, o, fm, fa);
+  return rakMainOmp<FLAG>(y, q, o, fm);
 }
 #endif
 #pragma endregion
