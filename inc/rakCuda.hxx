@@ -66,7 +66,7 @@ inline void rakInitializeCuW(K *vcom, K NB, K NE) {
  * @param DI index stride
  */
 template <bool SELF=false, bool BLOCK=false, class O, class K, class V, class W>
-inline void __device__ rakScanCommunitiesCudU(K *hk, W *hv, size_t H, size_t T, const O *xoff, const K *xedg, const V *xwei, K u, const K *vcom, size_t i, size_t DI) {
+inline void __device__ rakScanCommunitiesCudU(K *hk, K *hn, W *hv, size_t H, size_t T, const O *xoff, const K *xedg, const V *xwei, K u, const K *vcom, size_t i, size_t DI) {
   size_t EO = xoff[u];
   size_t EN = xoff[u+1] - xoff[u];
   K d = vcom[u];
@@ -75,7 +75,7 @@ inline void __device__ rakScanCommunitiesCudU(K *hk, W *hv, size_t H, size_t T, 
     W w = xwei[EO+i];
     K c = vcom[v];
     if (!SELF && u==v) continue;
-    hashtableAccumulateCudU<BLOCK>(hk, hv, H, T, c+1, w);
+    hashtableAccumulateCudU<BLOCK>(hk, hn, hv, H, T, c+1, w);
   }
 }
 
@@ -114,7 +114,7 @@ inline void __device__ rakMarkNeighborsCudU(F *vaff, const O *xoff, const K *xed
  * @param NE end vertex (exclusive)
  */
 template <class O, class K, class V, class W, class F>
-void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, K *bufn, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
   DEFINE_CUDA(t, b, B, G);
   uint64_cu ncomt = 0;
   for (K u=NB+B*b+t; u<NE; u+=G*B) {
@@ -126,9 +126,10 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
     size_t H  = nextPow2Cud(EN) - 1;
     size_t T  = nextPow2Cud(H)  - 1;
     K *hk = bufk + 2*EO;
+    K *hn = bufn + 2*EO;      // Line addedd
     W *hv = bufw + 2*EO;
-    hashtableClearCudW(hk, hv, H, 0, 1);
-    rakScanCommunitiesCudU(hk, hv, H, T, xoff, xedg, xwei, u, vcom, 0, 1);
+    hashtableClearCudW(hk, hn, hv, H, 0, 1);
+    rakScanCommunitiesCudU(hk, hn, hv, H, T, xoff, xedg, xwei, u, vcom, 0, 1);
     // Find best community for u.
     hashtableMaxCudU(hk, hv, H, 0, 1);
     vaff[u] = F(0);         // Mark u as unaffected (TODO: Use two buffers?)
@@ -157,10 +158,10 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
  * @param NE end vertex (exclusive)
  */
 template <class O, class K, class V, class W, class F>
-inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, K *bufn, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
   const int B = blockSizeCu(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
   const int G = gridSizeCu (NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationThreadCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+  rakMoveIterationThreadCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufn, bufw, xoff, xedg, xwei, NB, NE);
 }
 
 
@@ -178,7 +179,7 @@ inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk
  * @param NE end vertex (exclusive)
  */
 template <class O, class K, class V, class W, class F>
-void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, K *bufn, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
   DEFINE_CUDA(t, b, B, G);
   uint64_cu ncomb = 0;
   for (K u=NB+b; u<NE; u+=G) {
@@ -190,10 +191,11 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
     size_t H  = nextPow2Cud(EN) - 1;
     size_t T  = nextPow2Cud(H)  - 1;
     K *hk = bufk + 2*EO;
+    K *hn = bufn + 2*EO;
     W *hv = bufw + 2*EO;
-    hashtableClearCudW(hk, hv, H, t, B);
+    hashtableClearCudW(hk, hn, hv, H, t, B);
     __syncthreads();
-    rakScanCommunitiesCudU<false, true>(hk, hv, H, T, xoff, xedg, xwei, u, vcom, t, B);
+    rakScanCommunitiesCudU<false, true>(hk, hn, hv, H, T, xoff, xedg, xwei, u, vcom, t, B);
     __syncthreads();
     // Find best community for u.
     hashtableMaxCudU<true>(hk, hv, H, t, B);
@@ -225,10 +227,10 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
  * @param NE end vertex (exclusive)
  */
 template <class O, class K, class V, class W, class F>
-inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, K *bufn, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
   const int B = blockSizeCu<true>(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
   const int G = gridSizeCu <true>(NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationBlockCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+  rakMoveIterationBlockCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufn, bufw, xoff, xedg, xwei, NB, NE);
 }
 #pragma endregion
 
@@ -253,13 +255,15 @@ inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk,
  * @returns number of iterations performed
  */
 template <class O, class K, class V, class W, class F>
-inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
+inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, K *bufn, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
   int l = 0;
   uint64_cu n = 0;
   while (l<L) {
     fillValueCuW(ncom, 1, uint64_cu());
-    rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL);
-    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N); ++l;
+    rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufn, bufw, xoff, xedg, xwei, K(), NL);
+    
+    // (TODO: Understand Block Cuda)
+    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufn, bufw, xoff, xedg, xwei, NL,  N); ++l; 
     TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
     if (double(n)/N <= E) break;
   }
@@ -328,6 +332,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   K *vcomD = nullptr;
   F *vaffD = nullptr;
   K *bufkD = nullptr;
+  K *bufnD = nullptr;     // Next pointer from a key
   W *bufwD = nullptr;
   uint64_cu *ncomD = nullptr;
   // Partition vertices into low-degree and high-degree sets.
@@ -347,6 +352,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   TRY_CUDA( cudaMalloc(&vcomD,  N    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&vaffD,  N    * sizeof(F)) );
   TRY_CUDA( cudaMalloc(&bufkD, (2*M) * sizeof(K)) );
+  TRY_CUDA( cudaMalloc(&bufnD, (2*M) * sizeof(K)) );          // Next pointer from a key
   TRY_CUDA( cudaMalloc(&bufwD, (2*M) * sizeof(W)) );
   TRY_CUDA( cudaMalloc(&ncomD,  1    * sizeof(uint64_cu)) );
   // Copy data to device.
@@ -364,7 +370,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
     gatherValuesW(vaffc, vaff, ks);
     TRY_CUDA( cudaMemcpy(vaffD, vaffc.data(), N * sizeof(F), cudaMemcpyHostToDevice) );
     // Perform RAK iterations.
-    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
+    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vaffD, bufkD, bufnD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
   }, o.repeat);
   // Obtain final community membership.
   TRY_CUDA( cudaMemcpy(vcomc.data(), vcomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
