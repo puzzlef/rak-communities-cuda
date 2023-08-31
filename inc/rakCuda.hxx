@@ -69,7 +69,7 @@ template <bool SELF=false, bool BLOCK=false, class O, class K, class V, class W>
 inline void __device__ rakScanCommunitiesCudU(K *hk, K *hn, W *hv, size_t H, size_t T, const O *xoff, const K *xedg, const V *xwei, K u, const K *vcom, size_t i, size_t DI) {
   size_t EO = xoff[u];
   size_t EN = xoff[u+1] - xoff[u];
-  K d = vcom[u];
+  // K d = vcom[u];
   for (; i<EN; i+=DI) {
     K v = xedg[EO+i];
     W w = xwei[EO+i];
@@ -261,9 +261,9 @@ inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, K *bufn, W *bu
   while (l<L) {
     fillValueCuW(ncom, 1, uint64_cu());
     rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufn, bufw, xoff, xedg, xwei, K(), NL);
-    
+
     // (TODO: Understand Block Cuda)
-    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufn, bufw, xoff, xedg, xwei, NL,  N); ++l; 
+    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufn, bufw, xoff, xedg, xwei, NL,  N); ++l;
     TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
     if (double(n)/N <= E) break;
   }
