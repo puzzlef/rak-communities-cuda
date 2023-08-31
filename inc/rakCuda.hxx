@@ -234,6 +234,36 @@ inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk,
 
 
 
+#pragma region CROSS CHECK
+template <class K>
+void __global__ rakCrossCheckCukU(uint64_cu *ncom, K *vcom, K *vdom, K NB, K NE) {
+  DEFINE_CUDA(t, b, B, G);
+  // K c = vcom[u];
+  // if (vcom[c]!=c) Bad things happened
+  // Or
+  // K c = vcom[u];
+  // if (vcom[c]==u) Community swap happened
+  for (K u=NB+B*b+t; u<NE; u+=G*B) {
+    K c = vcom[u];
+    if (vcom[u]==vdom[u]) continue;
+    if (vcom[c]!=c) continue;  // Bad things happened
+    atomicAdd(ncom, 1);
+    vdom[u] = c;
+  }
+}
+
+
+template <class K>
+inline void rakCrossCheckCuU(uint64_cu *ncom, K *vcom, K *vdom, K NB, K NE) {
+  const int B = blockSizeCu(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
+  const int G = gridSizeCu (NE-NB, B, GRID_LIMIT_MAP_CUDA);
+  rakCrossCheckCukU<<<G, B>>>(ncom, vcom, vdom, NB, NE);
+}
+#pragma endregion
+
+
+
+
 #pragma region COMPUTATION LOOP
 /**
  * Perform RAK iterations.
@@ -252,13 +282,16 @@ inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk,
  * @returns number of iterations performed
  */
 template <class O, class K, class V, class W, class F>
-inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
+inline int rakLoopCuU(uint64_cu *ncom, K *vcom, K *vdom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
   int l = 0;
   uint64_cu n = 0;
   while (l<L) {
     fillValueCuW(ncom, 1, uint64_cu());
-    // rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL);
-    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(),  N); ++l;
+    rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL);
+    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N); ++l;
+    fillValueCuW(ncom, 1, uint64_cu());
+    rakCrossCheckCuU(ncom, vcom, vdom, K(), N);
+    copyValuesCuW(vdom, vcom, N);
     TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
     printf("Delta=%f\n", double(n)/N);
     if (double(n)/N <= E) break;
@@ -326,6 +359,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   K *xedgD = nullptr;
   V *xweiD = nullptr;
   K *vcomD = nullptr;
+  K *vdomD = nullptr;
   F *vaffD = nullptr;
   K *bufkD = nullptr;
   W *bufwD = nullptr;
@@ -345,6 +379,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   TRY_CUDA( cudaMalloc(&xedgD,  M    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&xweiD,  M    * sizeof(V)) );
   TRY_CUDA( cudaMalloc(&vcomD,  N    * sizeof(K)) );
+  TRY_CUDA( cudaMalloc(&vdomD,  N    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&vaffD,  N    * sizeof(F)) );
   TRY_CUDA( cudaMalloc(&bufkD, (2*M) * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&bufwD, (2*M) * sizeof(W)) );
@@ -359,12 +394,14 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
     // Setup initial community membership.
     if (q) TRY_CUDA( cudaMemcpy(vcomD, vcomc.data(), N * sizeof(K), cudaMemcpyHostToDevice) );
     else   rakInitializeCuW(vcomD, K(), K(N));
+    if (q) TRY_CUDA( cudaMemcpy(vdomD, vcomc.data(), N * sizeof(K), cudaMemcpyHostToDevice) );
+    else   rakInitializeCuW(vdomD, K(), K(N));
     // Mark initial affected vertices.
     tm += mark([&]() { fm(vaff); });
     gatherValuesW(vaffc, vaff, ks);
     TRY_CUDA( cudaMemcpy(vaffD, vaffc.data(), N * sizeof(F), cudaMemcpyHostToDevice) );
     // Perform RAK iterations.
-    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
+    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vdomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
   }, o.repeat);
   // Obtain final community membership.
   TRY_CUDA( cudaMemcpy(vcomc.data(), vcomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
@@ -374,6 +411,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   TRY_CUDA( cudaFree(xedgD) );
   TRY_CUDA( cudaFree(xweiD) );
   TRY_CUDA( cudaFree(vcomD) );
+  TRY_CUDA( cudaFree(vdomD) );
   TRY_CUDA( cudaFree(vaffD) );
   TRY_CUDA( cudaFree(bufkD) );
   TRY_CUDA( cudaFree(bufwD) );
