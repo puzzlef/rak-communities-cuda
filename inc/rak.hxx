@@ -354,6 +354,7 @@ inline RakResult<K> rakInvoke(const G& x, const vector<K>* q, const RakOptions& 
     else   rakInitializeW(vcom, x);
     for (l=0; l<o.maxIterations;) {
       size_t n = rakMoveIterationW(vcom, vaff, vcs, vcout, x); ++l;
+      printf("Delta=%f\n", double(n)/N);
       if (double(n)/N <= o.tolerance) break;
     }
   }, o.repeat);
@@ -391,6 +392,7 @@ inline RakResult<K> rakInvokeOmp(const G& x, const vector<K>* q, const RakOption
     else   rakInitializeOmpW(vcom, x);
     for (l=0; l<o.maxIterations;) {
       size_t n = rakMoveIterationOmpW(vcom, vaff, vcs, vcout, x); ++l;
+      printf("Delta=%f\n", double(n)/N);
       if (double(n)/N <= o.tolerance) break;
     }
   }, o.repeat);

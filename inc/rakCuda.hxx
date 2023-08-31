@@ -257,9 +257,10 @@ inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const
   uint64_cu n = 0;
   while (l<L) {
     fillValueCuW(ncom, 1, uint64_cu());
-    rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL);
-    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N); ++l;
+    // rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL);
+    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(),  N); ++l;
     TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
+    printf("Delta=%f\n", double(n)/N);
     if (double(n)/N <= E) break;
   }
   return l;
