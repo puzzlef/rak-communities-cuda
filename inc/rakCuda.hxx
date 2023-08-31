@@ -69,7 +69,6 @@ template <bool SELF=false, bool BLOCK=false, class O, class K, class V, class W>
 inline void __device__ rakScanCommunitiesCudU(K *hk, W *hv, size_t H, size_t T, const O *xoff, const K *xedg, const V *xwei, K u, const K *vcom, size_t i, size_t DI) {
   size_t EO = xoff[u];
   size_t EN = xoff[u+1] - xoff[u];
-  K d = vcom[u];
   for (; i<EN; i+=DI) {
     K v = xedg[EO+i];
     W w = xwei[EO+i];
