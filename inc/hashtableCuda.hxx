@@ -53,8 +53,8 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V 
  */
 template <bool BLOCK=false, class K, class V>
 inline bool __device__ hashtableAccumulateCudU(K *hk, V * hv, size_t H, size_t T, K k, V v) {
-  size_t i = k, di = k % T;
-  for (size_t t=0; t<H; ++t, i+=di)
+  size_t i = k, di = 1;  // k % T;
+  for (size_t t=0; t<H; ++t, i+=di, di=di*2 + (k % T))
     if (hashtableAccumulateAtCudU<BLOCK>(hk, hv, i % H, k, v)) return true;
   return false;
 }
@@ -71,8 +71,8 @@ inline bool __device__ hashtableAccumulateCudU(K *hk, V * hv, size_t H, size_t T
  */
 template <class K, class V>
 inline V __device__ hashtableGetCud(const K *hk, const V *hv, size_t H, size_t T, K k) {
-  size_t i = k, di = k % T;
-  for (size_t t=0; t<H; ++t, i+=di)
+  size_t i = k, di = 1;  // k % T;
+  for (size_t t=0; t<H; ++t, i+=di, di=di*2 + (k % T))
     if (hk[i % H]==k) return hv[i % H];
   return V();
 }
