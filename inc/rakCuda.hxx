@@ -245,6 +245,7 @@ void __global__ rakCrossCheckCukU(uint64_cu *ncom, K *vcom, K *vdom, K NB, K NE)
   // if (vcom[c]==u) Community swap happened
   for (K u=NB+B*b+t; u<NE; u+=G*B) {
     K c = vdom[u];
+    if (vdom[u]==vcom[u]) continue;
     if (vdom[c]==c) vcom[u] = c;
     else atomicAdd(ncom, uint64_cu()-1);
   }
