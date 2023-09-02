@@ -59,12 +59,12 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, K *hn, V *hv, size_t i, 
 template <bool BLOCK = false, class K, class V>
 inline bool __device__ hashtableAccumulateCudU(K *hk, K *hn, V *hv, size_t H, size_t T, K k, V v)
 {
-  size_t i = k;
-  for (K t=K(); t < H && hn[i % H] != K(); ++t, i = hn[i % H]-1)
+  size_t i = k, t = 0;
+  for (; t < H && hn[i % H] != K(); ++t, i = hn[i % H]-1)
     if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, i % H, k, v, K()))
       return true;
 
-  for (K tb = H; tb > 0; --tb)
+  for (K tb = H; tb > 0; --tb, ++t)
     if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, tb % H, k, v, i))
       return true;
 
