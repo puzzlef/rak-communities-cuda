@@ -38,7 +38,7 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, K *hn, V *hv, size_t i, 
   else
   {
     // (TODO: What if first atomicCAS is successfull and second fails?)
-    if (hk[i] != k && (hk[i] != K() || atomicCAS(&hk[i], K(), k) != K() || (prev != K() && atomicCAS(&hn[prev], K(), i) != K())))
+    if (hk[i] != k && (hk[i] != K() || atomicCAS(&hk[i], K(), k) != K() || (prev != K() && atomicCAS(&hn[prev], K(), i+1) != K())))
       return false;
     atomicAdd(&hv[i], v);
   }
@@ -60,12 +60,12 @@ template <bool BLOCK = false, class K, class V>
 inline bool __device__ hashtableAccumulateCudU(K *hk, K *hn, V *hv, size_t H, size_t T, K k, V v)
 {
   size_t i = k;
-  for (K t=K(); t < H && hn[i % H] != K(); ++t, i = hn[i % H])
+  for (K t=K(); t < H && hn[i % H] != K(); ++t, i = hn[i % H]-1)
     if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, i % H, k, v, K()))
       return true;
 
   for (K tb = H; tb > 0; --tb)
-    if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, size_t(tb-1), k, v, tb))
+    if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, tb % H, k, v, i))
       return true;
 
   return false;
