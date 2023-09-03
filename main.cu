@@ -138,24 +138,74 @@ void runExperiment(const G& x) {
       // Find static RAK (strict).
       auto d1 = rakStaticOmp(y, init, {repeat});
       flog(d1, "rakStaticOmp");
-      auto c1 = rakStaticCuda(y, init, {repeat});
-      flog(c1, "rakStaticCuda");
-      auto b1 = rakPicklessStaticCuda(y, init, {repeat});
-      flog(b1, "rakPicklessStaticCuda");
+      {
+        auto c1 = rakStaticCuda<1>(y, init, {repeat});
+        flog(c1, "rakStaticCuda1");
+        auto c2 = rakStaticCuda<2>(y, init, {repeat});
+        flog(c2, "rakStaticCuda2");
+        auto c3 = rakStaticCuda<3>(y, init, {repeat});
+        flog(c3, "rakStaticCuda3");
+        auto c4 = rakStaticCuda<4>(y, init, {repeat});
+        flog(c4, "rakStaticCuda4");
+      }
+      {
+        auto b1 = rakPicklessStaticCuda<1>(y, init, {repeat});
+        flog(b1, "rakPicklessStaticCuda1");
+        auto b2 = rakPicklessStaticCuda<2>(y, init, {repeat});
+        flog(b2, "rakPicklessStaticCuda2");
+        auto b3 = rakPicklessStaticCuda<3>(y, init, {repeat});
+        flog(b3, "rakPicklessStaticCuda3");
+        auto b4 = rakPicklessStaticCuda<4>(y, init, {repeat});
+        flog(b4, "rakPicklessStaticCuda4");
+      }
+      {
+        auto e1 = rakHybridStaticCuda<1, 1>(y, init, {repeat});
+        flog(e1, "rakHybridStaticCuda11");
+        auto e2 = rakHybridStaticCuda<1, 2>(y, init, {repeat});
+        flog(e2, "rakHybridStaticCuda12");
+        auto e3 = rakHybridStaticCuda<1, 3>(y, init, {repeat});
+        flog(e3, "rakHybridStaticCuda13");
+        auto e4 = rakHybridStaticCuda<1, 4>(y, init, {repeat});
+        flog(e4, "rakHybridStaticCuda14");
+        auto e5 = rakHybridStaticCuda<2, 1>(y, init, {repeat});
+        flog(e5, "rakHybridStaticCuda21");
+        auto e6 = rakHybridStaticCuda<2, 2>(y, init, {repeat});
+        flog(e6, "rakHybridStaticCuda22");
+        auto e7 = rakHybridStaticCuda<2, 3>(y, init, {repeat});
+        flog(e7, "rakHybridStaticCuda23");
+        auto e8 = rakHybridStaticCuda<2, 4>(y, init, {repeat});
+        flog(e8, "rakHybridStaticCuda24");
+        auto e9 = rakHybridStaticCuda<3, 1>(y, init, {repeat});
+        flog(e9, "rakHybridStaticCuda31");
+        auto e0 = rakHybridStaticCuda<3, 2>(y, init, {repeat});
+        flog(e0, "rakHybridStaticCuda32");
+        auto eA = rakHybridStaticCuda<3, 3>(y, init, {repeat});
+        flog(eA, "rakHybridStaticCuda33");
+        auto eB = rakHybridStaticCuda<3, 4>(y, init, {repeat});
+        flog(eB, "rakHybridStaticCuda34");
+        auto eC = rakHybridStaticCuda<4, 1>(y, init, {repeat});
+        flog(eC, "rakHybridStaticCuda41");
+        auto eD = rakHybridStaticCuda<4, 2>(y, init, {repeat});
+        flog(eD, "rakHybridStaticCuda42");
+        auto eE = rakHybridStaticCuda<4, 3>(y, init, {repeat});
+        flog(eE, "rakHybridStaticCuda43");
+        auto eF = rakHybridStaticCuda<4, 4>(y, init, {repeat});
+        flog(eF, "rakHybridStaticCuda44");
+      }
       // Find naive-dynamic RAK (strict).
-      auto d2 = rakStaticOmp(y, &d0.membership, {repeat});
-      flog(d2, "rakNaiveDynamicOmp");
-      auto c2 = rakStaticCuda(y, &d0.membership, {repeat});
-      flog(c2, "rakNaiveDynamicCuda");
-      auto b2 = rakPicklessStaticCuda(y, &d0.membership, {repeat});
-      flog(b2, "rakPicklessNaiveDynamicCuda");
+      // auto d2 = rakStaticOmp(y, &d0.membership, {repeat});
+      // flog(d2, "rakNaiveDynamicOmp");
+      // auto c2 = rakStaticCuda(y, &d0.membership, {repeat});
+      // flog(c2, "rakNaiveDynamicCuda");
+      // auto b2 = rakPicklessStaticCuda(y, &d0.membership, {repeat});
+      // flog(b2, "rakPicklessNaiveDynamicCuda");
       // Find frontier based dynamic RAK (strict).
-      auto d4 = rakDynamicFrontierOmp(y, deletions, insertions, &d0.membership, {repeat});
-      flog(d4, "rakDynamicFrontierOmp");
-      auto c4 = rakDynamicFrontierCuda(y, deletions, insertions, &d0.membership, {repeat});
-      flog(c4, "rakDynamicFrontierCuda");
-      auto b4 = rakPicklessDynamicFrontierCuda(y, deletions, insertions, &d0.membership, {repeat});
-      flog(b4, "rakPicklessDynamicFrontierCuda");
+      // auto d4 = rakDynamicFrontierOmp(y, deletions, insertions, &d0.membership, {repeat});
+      // flog(d4, "rakDynamicFrontierOmp");
+      // auto c4 = rakDynamicFrontierCuda(y, deletions, insertions, &d0.membership, {repeat});
+      // flog(c4, "rakDynamicFrontierCuda");
+      // auto b4 = rakPicklessDynamicFrontierCuda(y, deletions, insertions, &d0.membership, {repeat});
+      // flog(b4, "rakPicklessDynamicFrontierCuda");
     });
   });
 }

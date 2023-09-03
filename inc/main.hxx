@@ -19,4 +19,5 @@
 #ifdef CUDA
 #include "rakCuda.hxx"
 #include "rakPicklessCuda.hxx"
+#include "rakHybridCuda.hxx"
 #endif
