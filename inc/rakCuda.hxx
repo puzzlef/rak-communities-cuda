@@ -116,7 +116,8 @@ inline void __device__ rakMarkNeighborsCudU(F *vaff, const O *xoff, const K *xed
 template <class O, class K, class V, class W, class F>
 void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
-  uint64_cu ncomt = 0;
+  __shared__ uint64_cu ncomb[BLOCK_LIMIT_MAP_CUDA];
+  ncomb[t] = 0;
   for (K u=NB+B*b+t; u<NE; u+=G*B) {
     if (!vaff[u]) continue;
     // Scan communities connected to u.
@@ -137,10 +138,13 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
     if (c==d) continue;
     if (PICKLESS && c>d) continue;  // Pick smaller community-id (to avoid community swaps)
     // Change community of u.
-    vcom[u] = c; ++ncomt;
+    vcom[u] = c; ++ncomb[t];
     rakMarkNeighborsCudU(vaff, xoff, xedg, u, 0, 1);
   }
-  atomicAdd(ncom, ncomt);
+  // Update number of changed vertices.
+  __syncthreads();
+  sumValuesBlockReduceCudU(ncomb, B, t);
+  if (t==0) atomicAdd(ncom, ncomb[0]);
 }
 
 
@@ -211,6 +215,7 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
     if (t==0) ++ncomb;
     rakMarkNeighborsCudU(vaff, xoff, xedg, u, t, B);
   }
+  // Update number of changed vertices.
   if (t==0) atomicAdd((uint64_cu*) ncom, ncomb);
 }
 
