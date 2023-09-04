@@ -111,9 +111,10 @@ inline void __device__ rakMarkNeighborsCudU(F *vaff, const O *xoff, const K *xed
  * @param xwei edge values of original graph
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
+ * @param PICKLESS allow only picking smaller community id?
  */
 template <class O, class K, class V, class W, class F>
-void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
   uint64_cu ncomt = 0;
   for (K u=NB+B*b+t; u<NE; u+=G*B) {
@@ -134,6 +135,7 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
     if  (!hk[0]) continue;  // No community found
     K c = hk[0] - 1;        // Best community
     if (c==d) continue;
+    if (PICKLESS && c>d) continue;  // Pick smaller community-id (to avoid community swaps)
     // Change community of u.
     vcom[u] = c; ++ncomt;
     rakMarkNeighborsCudU(vaff, xoff, xedg, u, 0, 1);
@@ -154,12 +156,13 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
  * @param xwei edge values of original graph
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
+ * @param PICKLESS allow only picking smaller community id?
  */
 template <class O, class K, class V, class W, class F>
-inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   const int B = blockSizeCu(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
   const int G = gridSizeCu (NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationThreadCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+  rakMoveIterationThreadCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
 }
 
 
@@ -175,9 +178,10 @@ inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk
  * @param xwei edge values of original graph
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
+ * @param PICKLESS allow only picking smaller community id?
  */
 template <class O, class K, class V, class W, class F>
-void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
   uint64_cu ncomb = 0;
   for (K u=NB+b; u<NE; u+=G) {
@@ -201,6 +205,7 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
     if  (!hk[0]) continue;     // No community found
     K c = hk[0] - 1;           // Best community
     if (c==d) continue;
+    if (PICKLESS && c>d) continue;  // Pick smaller community-id (to avoid community swaps)
     // Change community of u.
     if (t==0) vcom[u] = c;
     if (t==0) ++ncomb;
@@ -222,12 +227,13 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
  * @param xwei edge values of original graph
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
+ * @param PICKLESS allow only picking smaller community id?
  */
 template <class O, class K, class V, class W, class F>
-inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE) {
+inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   const int B = blockSizeCu<true>(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
   const int G = gridSizeCu <true>(NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationBlockCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE);
+  rakMoveIterationBlockCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
 }
 #pragma endregion
 
@@ -261,6 +267,7 @@ inline void rakCrossCheckCuU(uint64_cu *ncom, K *vcom, K *vdom, K NB, K NE) {
 #pragma region COMPUTATION LOOP
 /**
  * Perform RAK iterations.
+ * @tparam PICKSTEP allow only picking smaller community id, every PICKSTEP iterations?
  * @param ncom number of changed vertices (updated)
  * @param vcom community each vertex belongs to (updated)
  * @param vaff vertex affected flags (updated)
@@ -275,17 +282,18 @@ inline void rakCrossCheckCuU(uint64_cu *ncom, K *vcom, K *vdom, K NB, K NE) {
  * @param L maximum number of iterations [20]
  * @returns number of iterations performed
  */
-template <class O, class K, class V, class W, class F>
-inline int rakLoopCuU(uint64_cu *ncom, K *&vcom, K *&vdom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
+template <int PICKSTEP=4, class O, class K, class V, class W, class F>
+inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
   int l = 0;
   uint64_cu n = 0;
   while (l<L) {
+    bool PICKLESS = l % PICKSTEP == 0;
     fillValueCuW(ncom, 1, uint64_cu());
-    rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL);
-    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N); ++l;
-    rakCrossCheckCuU(ncom, vdom, vcom, K(), N); swap(vdom, vcom);
+    rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL, PICKLESS);
+    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N,  PICKLESS); ++l;
+    // rakCrossCheckCuU(ncom, vdom, vcom, K(), N); swap(vdom, vcom);
     TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
-    if (double(n)/N <= E) break;
+    if (!PICKLESS && double(n)/N <= E) break;
   }
   return l;
 }
@@ -350,7 +358,6 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   K *xedgD = nullptr;
   V *xweiD = nullptr;
   K *vcomD = nullptr;
-  K *vdomD = nullptr;
   F *vaffD = nullptr;
   K *bufkD = nullptr;
   W *bufwD = nullptr;
@@ -370,7 +377,6 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   TRY_CUDA( cudaMalloc(&xedgD,  M    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&xweiD,  M    * sizeof(V)) );
   TRY_CUDA( cudaMalloc(&vcomD,  N    * sizeof(K)) );
-  TRY_CUDA( cudaMalloc(&vdomD,  N    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&vaffD,  N    * sizeof(F)) );
   TRY_CUDA( cudaMalloc(&bufkD, (2*M) * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&bufwD, (2*M) * sizeof(W)) );
@@ -385,14 +391,12 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
     // Setup initial community membership.
     if (q) TRY_CUDA( cudaMemcpy(vcomD, vcomc.data(), N * sizeof(K), cudaMemcpyHostToDevice) );
     else   rakInitializeCuW(vcomD, K(), K(N));
-    if (q) TRY_CUDA( cudaMemcpy(vdomD, vcomc.data(), N * sizeof(K), cudaMemcpyHostToDevice) );
-    else   rakInitializeCuW(vdomD, K(), K(N));
     // Mark initial affected vertices.
     tm += mark([&]() { fm(vaff); });
     gatherValuesW(vaffc, vaff, ks);
     TRY_CUDA( cudaMemcpy(vaffD, vaffc.data(), N * sizeof(F), cudaMemcpyHostToDevice) );
     // Perform RAK iterations.
-    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vdomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
+    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
   }, o.repeat);
   // Obtain final community membership.
   TRY_CUDA( cudaMemcpy(vcomc.data(), vcomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
@@ -402,7 +406,6 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   TRY_CUDA( cudaFree(xedgD) );
   TRY_CUDA( cudaFree(xweiD) );
   TRY_CUDA( cudaFree(vcomD) );
-  TRY_CUDA( cudaFree(vdomD) );
   TRY_CUDA( cudaFree(vaffD) );
   TRY_CUDA( cudaFree(bufkD) );
   TRY_CUDA( cudaFree(bufwD) );
