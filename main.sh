@@ -27,8 +27,8 @@ fi
 : "${BATCH_INSERTIONS_STEP:=*=10}"
 # Parameter sweep for number of threads
 : "${NUM_THREADS_MODE:=all}"
-: "${NUM_THREADS_BEGIN:=64}"
-: "${NUM_THREADS_END:=64}"
+: "${NUM_THREADS_BEGIN:=$MAX_THREADS}"
+: "${NUM_THREADS_END:=$MAX_THREADS}"
 : "${NUM_THREADS_STEP:=*=2}"
 # CUDA specific parameters
 : "${CUDA_ARCH:=sm_70}"
