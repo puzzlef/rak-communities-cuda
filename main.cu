@@ -140,16 +140,22 @@ void runExperiment(const G& x) {
       flog(d1, "rakStaticOmp");
       auto c1 = rakStaticCuda(y, init, {repeat});
       flog(c1, "rakStaticCuda");
+      auto b1 = rakStaticCuda<true>(y, init, {repeat});
+      flog(b1, "rakUseoldStaticCuda");
       // Find naive-dynamic RAK (strict).
       auto d2 = rakStaticOmp(y, &d0.membership, {repeat});
       flog(d2, "rakNaiveDynamicOmp");
       auto c2 = rakStaticCuda(y, &d0.membership, {repeat});
       flog(c2, "rakNaiveDynamicCuda");
+      auto b2 = rakStaticCuda<true>(y, &d0.membership, {repeat});
+      flog(b2, "rakUseoldNaiveDynamicCuda");
       // Find frontier based dynamic RAK (strict).
       auto d4 = rakDynamicFrontierOmp(y, deletions, insertions, &d0.membership, {repeat});
       flog(d4, "rakDynamicFrontierOmp");
       auto c4 = rakDynamicFrontierCuda(y, deletions, insertions, &d0.membership, {repeat});
       flog(c4, "rakDynamicFrontierCuda");
+      auto b4 = rakDynamicFrontierCuda<true>(y, deletions, insertions, &d0.membership, {repeat});
+      flog(b4, "rakUseoldDynamicFrontierCuda");
     });
   });
 }

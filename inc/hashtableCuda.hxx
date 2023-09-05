@@ -25,7 +25,7 @@
  * @param v value to accumulate
  * @returns whether value was accumulated
  */
-template <bool BLOCK=false, class K, class V>
+template <bool BLOCK=false, bool USEOLD=false, class K, class V>
 inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V v) {
   if (!BLOCK) {
     if (hk[i]!=k && hk[i]!=K()) return false;
@@ -33,10 +33,14 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V 
     hv[i] += v;
   }
   else {
-    // if (hk[i]!=k && (hk[i]!=K() || atomicCAS(&hk[i], K(), k)!=K())) return false;
-    if (hk[i]!=k && hk[i]!=K()) return false;
-    K old = atomicCAS(&hk[i], K(), k);
-    if (old!=K() && old!=k) return false;
+    if (USEOLD) {
+      if (hk[i]!=k && hk[i]!=K()) return false;
+      K old = atomicCAS(&hk[i], K(), k);
+      if (old!=K() && old!=k) return false;
+    }
+    else {
+      if (hk[i]!=k && (hk[i]!=K() || atomicCAS(&hk[i], K(), k)!=K())) return false;
+    }
     atomicAdd(&hv[i], v);
   }
   return true;
@@ -54,11 +58,11 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V 
  * @param v value to accumulate
  * @returns whether value was accumulated
  */
-template <bool BLOCK=false, class K, class V>
+template <bool BLOCK=false, bool USEOLD=false, class K, class V>
 inline bool __device__ hashtableAccumulateCudU(K *hk, V * hv, size_t H, size_t T, K k, V v) {
   size_t i = k, di = 1;  // k % T;
   for (size_t t=0; t<H; ++t, i+=di, di=di*2 + (k % T))
-    if (hashtableAccumulateAtCudU<BLOCK>(hk, hv, i % H, k, v)) return true;
+    if (hashtableAccumulateAtCudU<BLOCK, USEOLD>(hk, hv, i % H, k, v)) return true;
   return false;
 }
 
