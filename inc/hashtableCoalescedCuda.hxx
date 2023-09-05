@@ -26,17 +26,18 @@
  * @returns whether value was accumulated
  */
 template <bool BLOCK=false, class K, class V>
-inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V v) {
+inline bool __device__ hashtableCoalescedAccumulateAtCudU(K *hk, V *hv, K *hn, size_t i, K k, V v, K prev) {
   if (!BLOCK) {
     if (hk[i]!=k && hk[i]!=K()) return false;
     if (hk[i]==K()) hk[i] = k;
+    if (prev!=K())  hn[prev-1] = i+1;
     hv[i] += v;
   }
   else {
-    // if (hk[i]!=k && (hk[i]!=K() || atomicCAS(&hk[i], K(), k)!=K())) return false;
     if (hk[i]!=k && hk[i]!=K()) return false;
     K old = atomicCAS(&hk[i], K(), k);
     if (old!=K() && old!=k) return false;
+    if (prev!=K()) atomicCAS(&hn[prev-1], K(), i+1);
     atomicAdd(&hv[i], v);
   }
   return true;
@@ -55,10 +56,15 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V 
  * @returns whether value was accumulated
  */
 template <bool BLOCK=false, class K, class V>
-inline bool __device__ hashtableAccumulateCudU(K *hk, V * hv, size_t H, size_t T, K k, V v) {
-  size_t i = k, di = 1;  // k % T;
-  for (size_t t=0; t<H; ++t, i+=di, di=di*2 + (k % T))
-    if (hashtableAccumulateAtCudU<BLOCK>(hk, hv, i % H, k, v)) return true;
+inline bool __device__ hashtableCoalescedAccumulateCudU(K *hk, V * hv, K *hn, size_t H, size_t T, K k, V v) {
+  size_t i = k % H;
+  for (size_t t=0; t<H; ++t, i=hn[i]-1) {
+    if (hashtableCoalescedAccumulateAtCudU<BLOCK>(hk, hv, hn, i % H, k, v, K())) return true;
+    if (hn[i]==K()) break;
+  }
+  size_t j = k % H, dj = 1;
+  for (size_t t=0; t<H; ++t, j+=dj, dj=dj*2 + (k % T))
+    if (hashtableCoalescedAccumulateAtCudU<BLOCK>(hk, hv, hn, j % H, k, v, K(i+1))) return true;
   return false;
 }
 
@@ -73,7 +79,7 @@ inline bool __device__ hashtableAccumulateCudU(K *hk, V * hv, size_t H, size_t T
  * @returns entry value
  */
 template <class K, class V>
-inline V __device__ hashtableGetCud(const K *hk, const V *hv, size_t H, size_t T, K k) {
+inline V __device__ hashtableCoalescedGetCud(const K *hk, const V *hv, size_t H, size_t T, K k) {
   size_t i = k, di = 1;  // k % T;
   for (size_t t=0; t<H; ++t, i+=di, di=di*2 + (k % T))
     if (hk[i % H]==k) return hv[i % H];
@@ -90,10 +96,11 @@ inline V __device__ hashtableGetCud(const K *hk, const V *hv, size_t H, size_t T
  * @param DI index stride
  */
 template <class K, class V>
-inline void __device__ hashtableClearCudW(K *hk, V *hv, size_t H, size_t i, size_t DI) {
+inline void __device__ hashtableCoalescedClearCudW(K *hk, V *hv, K *hn, size_t H, size_t i, size_t DI) {
   for (; i<H; i+=DI) {
     hk[i] = K();
     hv[i] = V();
+    hn[i] = K();
   }
 }
 
@@ -107,7 +114,7 @@ inline void __device__ hashtableClearCudW(K *hk, V *hv, size_t H, size_t i, size
  * @param DI index stride
  */
 template <class K, class V>
-inline void __device__ hashtableMaxThreadCudU(K *hk, V *hv, size_t H, size_t i, size_t DI) {
+inline void __device__ hashtableCoalescedMaxThreadCudU(K *hk, V *hv, size_t H, size_t i, size_t DI) {
   for (size_t j=i+DI; j<H; j+=DI) {
     if (hv[j] > hv[i]) {
       hk[i] = hk[j];
@@ -126,7 +133,7 @@ inline void __device__ hashtableMaxThreadCudU(K *hk, V *hv, size_t H, size_t i, 
  * @param DI index stride
  */
 template <class K, class V>
-inline void __device__ hashtableMaxBlockReduceCudU(K *hk, V *hv, size_t H, size_t i) {
+inline void __device__ hashtableCoalescedMaxBlockReduceCudU(K *hk, V *hv, size_t H, size_t i) {
   for (; H>1;) {
     size_t DH = (H+1)/2;
     if (i<H/2 && hv[i+DH] > hv[i]) {
@@ -149,13 +156,13 @@ inline void __device__ hashtableMaxBlockReduceCudU(K *hk, V *hv, size_t H, size_
  * @param DI index stride
  */
 template <bool BLOCK=false, class K, class V>
-inline void __device__ hashtableMaxCudU(K *hk, V *hv, size_t H, size_t i, size_t DI) {
-  hashtableMaxThreadCudU(hk, hv, H, i, DI);
+inline void __device__ hashtableCoalescedMaxCudU(K *hk, V *hv, size_t H, size_t i, size_t DI) {
+  hashtableCoalescedMaxThreadCudU(hk, hv, H, i, DI);
   if (BLOCK) {
     // Wait for all threads within the block to finish.
     __syncthreads();
     // Reduce keys and values in hashtable to obtain key with maximum value at 0th entry.
-    hashtableMaxBlockReduceCudU(hk, hv, H, i);
+    hashtableCoalescedMaxBlockReduceCudU(hk, hv, H, i);
   }
 }
 #pragma endregion
