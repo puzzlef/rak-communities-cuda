@@ -33,7 +33,10 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V 
     hv[i] += v;
   }
   else {
-    if (hk[i]!=k && (hk[i]!=K() || atomicCAS(&hk[i], K(), k)!=K())) return false;
+    // if (hk[i]!=k && (hk[i]!=K() || atomicCAS(&hk[i], K(), k)!=K())) return false;
+    if (hk[i]!=k && hk[i]!=K()) return false;
+    K old = atomicCAS(&hk[i], K(), k);
+    if (old!=K() && old!=k) return false;
     atomicAdd(&hv[i], v);
   }
   return true;
