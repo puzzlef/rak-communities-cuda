@@ -2,9 +2,6 @@
 #include <cstdint>
 #include "_main.hxx"
 
-
-
-
 /**
  * A hashtable based on double hashing for collision resolution.
  * @details
@@ -25,20 +22,32 @@
  * @param v value to accumulate
  * @returns whether value was accumulated
  */
-template <bool BLOCK=false, class K, class V>
-inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V v) {
-  if (!BLOCK) {
-    if (hk[i]!=k && hk[i]!=K()) return false;
-    if (hk[i]==K()) hk[i] = k;
+template <bool BLOCK = false, class K, class V>
+inline bool __device__ hashtableAccumulateAtCudU(K *hk, K *hn, V *hv, size_t i, K k, V v, size_t prev)
+{
+
+  if (!BLOCK)
+  {
+    if (hk[i] != k && hk[i] != K())
+      return false;
+    if (hk[i] == K())
+      hk[i] = k;
+    if (prev != K())
+      hn[prev - 1] = i + 1;
     hv[i] += v;
   }
-  else {
-    if (hk[i]!=k && (hk[i]!=K() || atomicCAS(&hk[i], K(), k)!=K())) return false;
+  else
+  {
+    if (hk[i] != k && (hk[i] != K() || atomicCAS(&hk[i], K(), k) != K()))
+      return false;
+
+    if ((prev != K() && atomicCAS(&hn[prev - 1], K(), i + 1) != K()))
+      return false;
+
     atomicAdd(&hv[i], v);
   }
   return true;
 }
-
 
 /**
  * Accumulate value to an entry in hashtable [device function].
@@ -51,14 +60,30 @@ inline bool __device__ hashtableAccumulateAtCudU(K *hk, V *hv, size_t i, K k, V 
  * @param v value to accumulate
  * @returns whether value was accumulated
  */
-template <bool BLOCK=false, class K, class V>
-inline bool __device__ hashtableAccumulateCudU(K *hk, V * hv, size_t H, size_t T, K k, V v) {
-  size_t i = k, di = 1;  // k % T;
-  for (size_t t=0; t<H; ++t, i+=di, di=di*2 + (k % T))
-    if (hashtableAccumulateAtCudU<BLOCK>(hk, hv, i % H, k, v)) return true;
+template <bool BLOCK = false, class K, class V>
+inline bool __device__ hashtableAccumulateCudU(K *hk, K *hn, V *hv, size_t H, size_t T, K k, V v)
+{
+
+  // size_t i = k, di = 1; // k % T;
+  // for (size_t t = 0; t < H; ++t, i += di, di = di * 2 + (k % T))
+  //   if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, i % H, k, v, K()))
+  //     return true;
+
+  size_t i = k % H; // k % T;
+  for (size_t t = 0; t < H; ++t, i = hn[i % H] - 1)
+  {
+    if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, i % H, k, v, K()))
+      return true;
+    if (hn[i % H] == K())
+      break;
+  }
+
+  for (size_t tb = 0; tb < H; ++tb)
+    if (hashtableAccumulateAtCudU<BLOCK>(hk, hn, hv, tb % H, k, v, (i % H) + 1))
+      return true;
+
   return false;
 }
-
 
 /**
  * Obtain value of an entry in hashtable [device function].
@@ -70,13 +95,14 @@ inline bool __device__ hashtableAccumulateCudU(K *hk, V * hv, size_t H, size_t T
  * @returns entry value
  */
 template <class K, class V>
-inline V __device__ hashtableGetCud(const K *hk, const V *hv, size_t H, size_t T, K k) {
-  size_t i = k, di = 1;  // k % T;
-  for (size_t t=0; t<H; ++t, i+=di, di=di*2 + (k % T))
-    if (hk[i % H]==k) return hv[i % H];
+inline V __device__ hashtableGetCud(const K *hk, const V *hv, size_t H, size_t T, K k)
+{
+  size_t i = k, di = 1; // k % T;
+  for (size_t t = 0; t < H; ++t, i += di, di = di * 2 + (k % T))
+    if (hk[i % H] == k)
+      return hv[i % H];
   return V();
 }
-
 
 /**
  * Clear entries in hashtable [device function].
@@ -87,13 +113,15 @@ inline V __device__ hashtableGetCud(const K *hk, const V *hv, size_t H, size_t T
  * @param DI index stride
  */
 template <class K, class V>
-inline void __device__ hashtableClearCudW(K *hk, V *hv, size_t H, size_t i, size_t DI) {
-  for (; i<H; i+=DI) {
+inline void __device__ hashtableClearCudW(K *hk, K *hn, V *hv, size_t H, size_t i, size_t DI)
+{
+  for (; i < H; i += DI)
+  {
     hk[i] = K();
+    hn[i] = K();
     hv[i] = V();
   }
 }
-
 
 /**
  * Find entry in hashtable with maximum value, from a thread [device function].
@@ -104,15 +132,17 @@ inline void __device__ hashtableClearCudW(K *hk, V *hv, size_t H, size_t i, size
  * @param DI index stride
  */
 template <class K, class V>
-inline void __device__ hashtableMaxThreadCudU(K *hk, V *hv, size_t H, size_t i, size_t DI) {
-  for (size_t j=i+DI; j<H; j+=DI) {
-    if (hv[j] > hv[i]) {
+inline void __device__ hashtableMaxThreadCudU(K *hk, V *hv, size_t H, size_t i, size_t DI)
+{
+  for (size_t j = i + DI; j < H; j += DI)
+  {
+    if (hv[j] > hv[i])
+    {
       hk[i] = hk[j];
       hv[i] = hv[j];
     }
   }
 }
-
 
 /**
  * Find entry in block-sized hashtable with maximum value [device function].
@@ -123,18 +153,20 @@ inline void __device__ hashtableMaxThreadCudU(K *hk, V *hv, size_t H, size_t i, 
  * @param DI index stride
  */
 template <class K, class V>
-inline void __device__ hashtableMaxBlockReduceCudU(K *hk, V *hv, size_t H, size_t i) {
-  for (; H>1;) {
-    size_t DH = (H+1)/2;
-    if (i<H/2 && hv[i+DH] > hv[i]) {
-      hk[i] = hk[i+DH];
-      hv[i] = hv[i+DH];
+inline void __device__ hashtableMaxBlockReduceCudU(K *hk, V *hv, size_t H, size_t i)
+{
+  for (; H > 1;)
+  {
+    size_t DH = (H + 1) / 2;
+    if (i < H / 2 && hv[i + DH] > hv[i])
+    {
+      hk[i] = hk[i + DH];
+      hv[i] = hv[i + DH];
     }
     __syncthreads();
     H = DH;
   }
 }
-
 
 /**
  * Find entry in hashtable with maximum value [device function].
@@ -145,10 +177,12 @@ inline void __device__ hashtableMaxBlockReduceCudU(K *hk, V *hv, size_t H, size_
  * @param i start index
  * @param DI index stride
  */
-template <bool BLOCK=false, class K, class V>
-inline void __device__ hashtableMaxCudU(K *hk, V *hv, size_t H, size_t i, size_t DI) {
+template <bool BLOCK = false, class K, class V>
+inline void __device__ hashtableMaxCudU(K *hk, V *hv, size_t H, size_t i, size_t DI)
+{
   hashtableMaxThreadCudU(hk, hv, H, i, DI);
-  if (BLOCK) {
+  if (BLOCK)
+  {
     // Wait for all threads within the block to finish.
     __syncthreads();
     // Reduce keys and values in hashtable to obtain key with maximum value at 0th entry.
