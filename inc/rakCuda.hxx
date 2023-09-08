@@ -15,6 +15,16 @@ using std::partition;
 
 
 
+#pragma region LAUNCH CONFIG
+#ifndef BLOCK_LIMIT_RAK_THREAD_CUDA
+/** Maximum number of threads per block with RAK thread-per-vertex kernel. */
+#define BLOCK_LIMIT_RAK_THREAD_CUDA  32
+#endif
+#pragma endregion
+
+
+
+
 #pragma region METHODS
 #pragma region INITIALIZE
 /**
@@ -116,7 +126,7 @@ inline void __device__ rakMarkNeighborsCudU(F *vaff, const O *xoff, const K *xed
 template <class O, class K, class V, class W, class F>
 void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
-  __shared__ uint64_cu ncomb[BLOCK_LIMIT_MAP_CUDA];
+  __shared__ uint64_cu ncomb[BLOCK_LIMIT_RAK_THREAD_CUDA];
   ncomb[t] = 0;
   for (K u=NB+B*b+t; u<NE; u+=G*B) {
     if (!vaff[u]) continue;
@@ -164,7 +174,7 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
  */
 template <class O, class K, class V, class W, class F>
 inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
-  const int B = blockSizeCu(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
+  const int B = blockSizeCu(NE-NB,   BLOCK_LIMIT_RAK_THREAD_CUDA);
   const int G = gridSizeCu (NE-NB, B, GRID_LIMIT_MAP_CUDA);
   rakMoveIterationThreadCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
 }
