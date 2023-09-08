@@ -316,7 +316,7 @@ inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const
  */
 template <class G, class K>
 inline size_t rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
-  K SWITCH_DEGREE = 64;  // Switch to block-per-vertex approach if degree >= SWITCH_DEGREE
+  K SWITCH_DEGREE = 32;  // Switch to block-per-vertex approach if degree >= SWITCH_DEGREE
   K SWITCH_LIMIT  = 64;  // Avoid switching if number of vertices < SWITCH_LIMIT
   size_t N = ks.size();
   auto  kb = ks.begin(), ke = ks.end();
