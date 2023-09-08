@@ -314,9 +314,9 @@ inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const
  * @param x original graph
  * @returns number of low-degree vertices
  */
-template <class G, class K>
+template <int SWITCH_DEGREE=64, class G, class K>
 inline size_t rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
-  K SWITCH_DEGREE = 64;  // Switch to block-per-vertex approach if degree >= SWITCH_DEGREE
+  // K SWITCH_DEGREE = 64;  // Switch to block-per-vertex approach if degree >= SWITCH_DEGREE
   K SWITCH_LIMIT  = 64;  // Avoid switching if number of vertices < SWITCH_LIMIT
   size_t N = ks.size();
   auto  kb = ks.begin(), ke = ks.end();
@@ -342,7 +342,7 @@ inline size_t rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
  * @param fm marking affected vertices / preprocessing to be performed (vaff)
  * @returns rak result
  */
-template <class FLAG=char, class G, class K, class FM>
+template <int SWITCH_DEGREE=64, class FLAG=char, class G, class K, class FM>
 inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
@@ -369,7 +369,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
   uint64_cu *ncomD = nullptr;
   // Partition vertices into low-degree and high-degree sets.
   vector<K> ks = vertexKeys(x);
-  size_t NL = rakPartitionVerticesCudaU(ks, x);
+  size_t NL = rakPartitionVerticesCudaU<SWITCH_DEGREE>(ks, x);
   // Obtain data for CSR.
   csrCreateOffsetsW (xoff, x, ks);
   csrCreateEdgeKeysW(xedg, x, ks);
@@ -431,10 +431,10 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
  * @param o rak options
  * @returns rak result
  */
-template <class FLAG=char, class G, class K>
+template <int SWITCH_DEGREE=64, class FLAG=char, class G, class K>
 inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
-  return rakInvokeCuda<FLAG>(x, q, o, fm);
+  return rakInvokeCuda<SWITCH_DEGREE, FLAG>(x, q, o, fm);
 }
 #pragma endregion
 
@@ -452,10 +452,10 @@ inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const 
  * @param o rak options
  * @returns rak result
  */
-template <class FLAG=char, class G, class K, class V>
+template <int SWITCH_DEGREE=64, class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
-  return rakInvokeCuda<FLAG>(y, q, o, fm);
+  return rakInvokeCuda<SWITCH_DEGREE, FLAG>(y, q, o, fm);
 }
 #pragma endregion
 #pragma endregion
