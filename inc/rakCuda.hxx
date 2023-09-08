@@ -199,10 +199,12 @@ inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk
  * @param NE end vertex (exclusive)
  * @param PICKLESS allow only picking smaller community id?
  */
-template <class O, class K, class V, class W, class F>
+template <int MAX_DEGREE=128, class O, class K, class V, class W, class F>
 void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
   uint64_cu ncomb = 0;
+  __shared__ K shrk[2 * MAX_DEGREE];
+  __shared__ W shrw[2 * MAX_DEGREE];
   for (K u=NB+b; u<NE; u+=G) {
     if (!vaff[u]) continue;
     // Scan communities connected to u.
@@ -211,8 +213,8 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
     size_t EN = xoff[u+1] - xoff[u];
     size_t H  = nextPow2Cud(EN) - 1;
     size_t T  = nextPow2Cud(H)  - 1;
-    K *hk = bufk + 2*EO;
-    W *hv = bufw + 2*EO;
+    K *hk = EN <= MAX_DEGREE? shrk : bufk + 2*EO;
+    W *hv = EN <= MAX_DEGREE? shrw : bufw + 2*EO;
     hashtableClearCudW(hk, hv, H, t, B);
     __syncthreads();
     rakScanCommunitiesCudU<false, true>(hk, hv, H, T, xoff, xedg, xwei, u, vcom, t, B);
@@ -249,11 +251,11 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
  * @param NE end vertex (exclusive)
  * @param PICKLESS allow only picking smaller community id?
  */
-template <class O, class K, class V, class W, class F>
+template <int MAX_DEGREE=128, class O, class K, class V, class W, class F>
 inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   const int B = blockSizeCu<true>(NE-NB,   BLOCK_LIMIT_RAK_BLOCK_CUDA);
   const int G = gridSizeCu <true>(NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationBlockCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
+  rakMoveIterationBlockCukU<MAX_DEGREE><<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
 }
 #pragma endregion
 
@@ -302,7 +304,7 @@ inline void rakCrossCheckCuU(uint64_cu *ncom, K *vcom, K *vdom, K NB, K NE) {
  * @param L maximum number of iterations [20]
  * @returns number of iterations performed
  */
-template <class O, class K, class V, class W, class F>
+template <int MAX_DEGREE=128, class O, class K, class V, class W, class F>
 inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
   int l = 0;
   uint64_cu n = 0;
@@ -311,7 +313,7 @@ inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const
     bool PICKLESS = l % PICKSTEP == 0;
     fillValueCuW(ncom, 1, uint64_cu());
     rakMoveIterationThreadCuU(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL, PICKLESS);
-    rakMoveIterationBlockCuU (ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N,  PICKLESS); ++l;
+    rakMoveIterationBlockCuU<MAX_DEGREE>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N,  PICKLESS); ++l;
     // rakCrossCheckCuU(ncom, vdom, vcom, K(), N); swap(vdom, vcom);
     TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
     if (!PICKLESS && double(n)/N <= E) break;
@@ -358,7 +360,7 @@ inline size_t rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
  * @param fm marking affected vertices / preprocessing to be performed (vaff)
  * @returns rak result
  */
-template <class FLAG=char, class G, class K, class FM>
+template <int MAX_DEGREE=128, class FLAG=char, class G, class K, class FM>
 inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptions& o, FM fm) {
   using V = typename G::edge_value_type;
   using W = RAK_WEIGHT_TYPE;
@@ -417,7 +419,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
     gatherValuesW(vaffc, vaff, ks);
     TRY_CUDA( cudaMemcpy(vaffD, vaffc.data(), N * sizeof(F), cudaMemcpyHostToDevice) );
     // Perform RAK iterations.
-    mark([&]() { l = rakLoopCuU(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
+    mark([&]() { l = rakLoopCuU<MAX_DEGREE>(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L); });
   }, o.repeat);
   // Obtain final community membership.
   TRY_CUDA( cudaMemcpy(vcomc.data(), vcomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
@@ -447,10 +449,10 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
  * @param o rak options
  * @returns rak result
  */
-template <class FLAG=char, class G, class K>
+template <int MAX_DEGREE=128, class FLAG=char, class G, class K>
 inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
-  return rakInvokeCuda<FLAG>(x, q, o, fm);
+  return rakInvokeCuda<MAX_DEGREE, FLAG>(x, q, o, fm);
 }
 #pragma endregion
 
@@ -468,10 +470,10 @@ inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const 
  * @param o rak options
  * @returns rak result
  */
-template <class FLAG=char, class G, class K, class V>
+template <int MAX_DEGREE=128, class FLAG=char, class G, class K, class V>
 inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
-  return rakInvokeCuda<FLAG>(y, q, o, fm);
+  return rakInvokeCuda<MAX_DEGREE, FLAG>(y, q, o, fm);
 }
 #pragma endregion
 #pragma endregion
