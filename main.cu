@@ -140,6 +140,20 @@ void runExperiment(const G& x) {
       flog(d1, "rakStaticOmp");
       auto c1 = rakStaticCuda(y, init, {repeat});
       flog(c1, "rakStaticCuda");
+      auto c16 = rakStaticCuda<16>(y, init, {repeat});
+      flog(c16, "rakStaticCuda16");
+      auto c32 = rakStaticCuda<32>(y, init, {repeat});
+      flog(c32, "rakStaticCuda32");
+      auto c64 = rakStaticCuda<64>(y, init, {repeat});
+      flog(c64, "rakStaticCuda64");
+      auto c128 = rakStaticCuda<128>(y, init, {repeat});
+      flog(c128, "rakStaticCuda128");
+      auto c256 = rakStaticCuda<256>(y, init, {repeat});
+      flog(c256, "rakStaticCuda256");
+      auto c512 = rakStaticCuda<512>(y, init, {repeat});
+      flog(c512, "rakStaticCuda512");
+      auto c1024 = rakStaticCuda<1024>(y, init, {repeat});
+      flog(c1024, "rakStaticCuda1024");
       // Find naive-dynamic RAK (strict).
       auto d2 = rakStaticOmp(y, &d0.membership, {repeat});
       flog(d2, "rakNaiveDynamicOmp");
