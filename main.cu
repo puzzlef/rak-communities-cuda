@@ -139,17 +139,23 @@ void runExperiment(const G& x) {
       auto d1 = rakStaticOmp(y, init, {repeat});
       flog(d1, "rakStaticOmp");
       auto c1 = rakStaticCuda(y, init, {repeat});
-      flog(c1, "rakStaticCuda");
+      flog(c1, "rakStaticPartitionCuda");
+      auto b1 = rakStaticCuda<true>(y, init, {repeat});
+      flog(b1, "rakStaticSortCuda");
       // Find naive-dynamic RAK (strict).
       auto d2 = rakStaticOmp(y, &d0.membership, {repeat});
       flog(d2, "rakNaiveDynamicOmp");
       auto c2 = rakStaticCuda(y, &d0.membership, {repeat});
-      flog(c2, "rakNaiveDynamicCuda");
+      flog(c2, "rakNaiveDynamicPartitionCuda");
+      auto b2 = rakStaticCuda<true>(y, &d0.membership, {repeat});
+      flog(b2, "rakNaiveDynamicSortCuda");
       // Find frontier based dynamic RAK (strict).
       auto d4 = rakDynamicFrontierOmp(y, deletions, insertions, &d0.membership, {repeat});
       flog(d4, "rakDynamicFrontierOmp");
       auto c4 = rakDynamicFrontierCuda(y, deletions, insertions, &d0.membership, {repeat});
-      flog(c4, "rakDynamicFrontierCuda");
+      flog(c4, "rakDynamicFrontierPartitionCuda");
+      auto b4 = rakDynamicFrontierCuda<true>(y, deletions, insertions, &d0.membership, {repeat});
+      flog(b4, "rakDynamicFrontierSortCuda");
     });
   });
 }
