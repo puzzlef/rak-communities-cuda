@@ -202,7 +202,10 @@ inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk
 template <class O, class K, class V, class W, class F>
 void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
+  const int MAX_DEGREE = BLOCK_LIMIT_RAK_BLOCK_CUDA;  // 128
   uint64_cu ncomb = 0;
+  __shared__ K shrk[2 * MAX_DEGREE];
+  __shared__ W shrw[2 * MAX_DEGREE];
   for (K u=NB+b; u<NE; u+=G) {
     if (!vaff[u]) continue;
     // Scan communities connected to u.
@@ -211,8 +214,8 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
     size_t EN = xoff[u+1] - xoff[u];
     size_t H  = nextPow2Cud(EN) - 1;
     size_t T  = nextPow2Cud(H)  - 1;
-    K *hk = bufk + 2*EO;
-    W *hv = bufw + 2*EO;
+    K *hk = EN <= MAX_DEGREE? shrk : bufk + 2*EO;
+    W *hv = EN <= MAX_DEGREE? shrw : bufw + 2*EO;
     hashtableClearCudW(hk, hv, H, t, B);
     __syncthreads();
     rakScanCommunitiesCudU<false, true>(hk, hv, H, T, xoff, xedg, xwei, u, vcom, t, B);
