@@ -129,17 +129,20 @@ template <class O, class K, class V, class W, class F>
 void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
   __shared__ uint64_cu ncomb[BLOCK_LIMIT_RAK_THREAD_CUDA];
+  const int  MAX_DEGREE = BLOCK_LIMIT_RAK_THREAD_CUDA;
+  K shrk[2 * MAX_DEGREE];
+  W shrw[2 * MAX_DEGREE];
   ncomb[t] = 0;
   for (K u=NB+B*b+t; u<NE; u+=G*B) {
     if (!vaff[u]) continue;
     // Scan communities connected to u.
     K d = vcom[u];
-    size_t EO = xoff[u];
+    // size_t EO = xoff[u];
     size_t EN = xoff[u+1] - xoff[u];
     size_t H  = nextPow2Cud(EN) - 1;
     size_t T  = nextPow2Cud(H)  - 1;
-    K *hk = bufk + 2*EO;
-    W *hv = bufw + 2*EO;
+    K *hk = shrk;  // bufk + 2*EO;
+    W *hv = shrw;  // bufw + 2*EO;
     hashtableClearCudW(hk, hv, H, 0, 1);
     rakScanCommunitiesCudU(hk, hv, H, T, xoff, xedg, xwei, u, vcom, 0, 1);
     // Find best community for u.
