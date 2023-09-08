@@ -299,10 +299,11 @@ inline void rakCrossCheckCuU(uint64_cu *ncom, K *vcom, K *vdom, K NB, K NE) {
  * @param L maximum number of iterations [20]
  * @returns number of iterations performed
  */
-template <int PICKSTEP=4, class O, class K, class V, class W, class F>
+template <class O, class K, class V, class W, class F>
 inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
   int l = 0;
   uint64_cu n = 0;
+  const int PICKSTEP = 4;
   while (l<L) {
     bool PICKLESS = l % PICKSTEP == 0;
     fillValueCuW(ncom, 1, uint64_cu());
