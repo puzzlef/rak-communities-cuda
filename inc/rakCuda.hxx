@@ -19,6 +19,8 @@ using std::partition;
 #ifndef BLOCK_LIMIT_RAK_THREAD_CUDA
 /** Maximum number of threads per block with RAK thread-per-vertex kernel. */
 #define BLOCK_LIMIT_RAK_THREAD_CUDA  32
+/** Maximum number of threads per block with RAK block-per-vertex kernel. */
+#define BLOCK_LIMIT_RAK_BLOCK_CUDA   128
 #endif
 #pragma endregion
 
@@ -246,7 +248,7 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
  */
 template <class O, class K, class V, class W, class F>
 inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
-  const int B = blockSizeCu<true>(NE-NB,   BLOCK_LIMIT_MAP_CUDA);
+  const int B = blockSizeCu<true>(NE-NB,   BLOCK_LIMIT_RAK_BLOCK_CUDA);
   const int G = gridSizeCu <true>(NE-NB, B, GRID_LIMIT_MAP_CUDA);
   rakMoveIterationBlockCukU<<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
 }
