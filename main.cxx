@@ -158,11 +158,13 @@ void runExperiment(const G& x) {
   auto d0 = rakStaticOmp(x, {5});
   glog(d0, "rakStaticOmpOriginal", MAX_THREADS, x, M, 0.0, 0.0);
   #if BATCH_LENGTH>1
-  vector<K> D2, D3, D4;
+  vector<K> D2, D4;
+  vector<K> E2, E4;
   #else
   const auto& D2 = d0.membership;
-  const auto& D3 = d0.membership;
   const auto& D4 = d0.membership;
+  const auto& E2 = d0.membership;
+  const auto& E4 = d0.membership;
   #endif
   // Get community memberships on updated graph (dynamic).
   runBatches(x, rnd, [&](const auto& y, auto deletionsf, const auto& deletions, auto insertionsf, const auto& insertions, int sequence, int epoch) {
@@ -170,8 +172,9 @@ void runExperiment(const G& x) {
     #if BATCH_LENGTH>1
     if (sequence==0) {
       D2 = d0.membership;
-      D3 = d0.membership;
       D4 = d0.membership;
+      E2 = d0.membership;
+      E4 = d0.membership;
     }
     #endif
     // Adjust number of threads.
@@ -182,19 +185,23 @@ void runExperiment(const G& x) {
       // Find static RAK (strict).
       auto d1 = rakStaticOmp(y, {repeat});
       flog(d1, "rakStaticOmp");
+      auto e1 = rakStaticCuda(y, {repeat});
+      flog(e1, "rakStaticCuda");
       // Find naive-dynamic RAK (strict).
       auto d2 = rakNaiveDynamicOmp(y, D2, {repeat});
       flog(d2, "rakNaiveDynamicOmp");
-      // Find delta-screening based dynamic RAK (strict).
-      auto d3 = rakDynamicDeltaScreeningOmp(y, deletions, insertions, D3, {repeat});
-      flog(d3, "rakDynamicDeltaScreeningOmp");
+      auto e2 = rakNaiveDynamicCuda(y, E2, {repeat});
+      flog(e2, "rakNaiveDynamicCuda");
       // Find frontier based dynamic RAK (strict).
       auto d4 = rakDynamicFrontierOmp(y, deletions, insertions, D4, {repeat});
       flog(d4, "rakDynamicFrontierOmp");
+      auto e4 = rakDynamicFrontierCuda(y, deletions, insertions, E4, {repeat});
+      flog(e4, "rakDynamicFrontierCuda");
       #if BATCH_LENGTH>1
       D2 = d2.membership;
-      D3 = d3.membership;
       D4 = d4.membership;
+      E2 = e2.membership;
+      E4 = e4.membership;
       #endif
     });
   });
