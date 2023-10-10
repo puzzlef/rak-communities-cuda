@@ -54,7 +54,7 @@ DEFINES=(""
 
 # Run
 nvcc ${DEFINES[*]} -x cu -arch=$CUDA_ARCH -std=c++17 -O3 -Xcompiler -fopenmp main.cxx
-# stdbuf --output=L ./a.out ~/Data/soc-Epinions1.mtx   0 0 2>&1 | tee -a "$out"
+# stdbuf --output=L ./a.out ~/Data/web-Stanford.mtx    0 0 2>&1 | tee -a "$out"
 # stdbuf --output=L ./a.out ~/Data/indochina-2004.mtx  0 0 2>&1 | tee -a "$out"
 # stdbuf --output=L ./a.out ~/Data/uk-2002.mtx         0 0 2>&1 | tee -a "$out"
 # stdbuf --output=L ./a.out ~/Data/arabic-2005.mtx     0 0 2>&1 | tee -a "$out"
