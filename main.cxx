@@ -28,7 +28,7 @@ using namespace std;
 #endif
 #ifndef REPEAT_METHOD
 /** Number of times to repeat each method. */
-#define REPEAT_METHOD 1
+#define REPEAT_METHOD 5
 #endif
 #pragma endregion
 
@@ -70,8 +70,10 @@ inline void runBatches(const G& x, R& rnd, F fn) {
     for (int r=0; r<REPEAT_BATCH; ++r) {
       auto y  = duplicate(x);
       for (int sequence=0; sequence<BATCH_LENGTH; ++sequence) {
-      auto deletions  = removeRandomEdges(y, rnd, size_t(d * x.size()/2), 1, x.span()-1);
-      auto insertions = addRandomEdges   (y, rnd, size_t(i * x.size()/2), 1, x.span()-1, E(1));
+        auto deletions  = generateEdgeDeletions (rnd, y, size_t(d * x.size()/2), 1, x.span()-1, true);
+        auto insertions = generateEdgeInsertions(rnd, y, size_t(i * x.size()/2), 1, x.span()-1, true, E(1));
+        tidyBatchUpdateU(deletions, insertions, y);
+        applyBatchUpdateOmpU(y, deletions, insertions);
         fn(y, d, deletions, i, insertions, sequence, epoch);
       }
     }
@@ -85,16 +87,44 @@ inline void runBatches(const G& x, R& rnd, F fn) {
 
 
 /**
+ * Run a function on each number of threads, for a specific epoch.
+ * @param epoch epoch number
+ * @param fn function to run on each number of threads
+ */
+template <class F>
+inline void runThreadsWithBatch(int epoch, F fn) {
+  int t = NUM_THREADS_BEGIN;
+  for (int l=0; l<epoch && t<=NUM_THREADS_END; ++l)
+    t NUM_THREADS_STEP;
+  omp_set_num_threads(t);
+  fn(t);
+  omp_set_num_threads(MAX_THREADS);
+}
+
+
+/**
  * Run a function on each number of threads, with a specified range of thread counts.
  * @param fn function to run on each number of threads
  */
 template <class F>
-inline void runThreads(F fn) {
+inline void runThreadsAll(F fn) {
   for (int t=NUM_THREADS_BEGIN; t<=NUM_THREADS_END; t NUM_THREADS_STEP) {
     omp_set_num_threads(t);
     fn(t);
     omp_set_num_threads(MAX_THREADS);
   }
+}
+
+
+/**
+ * Run a function on each number of threads, with a specified range of thread counts or for a specific epoch (depending on NUM_THREADS_MODE).
+ * @param epoch epoch number
+ * @param fn function to run on each number of threads
+ */
+template <class F>
+inline void runThreads(int epoch, F fn) {
+  if (NUM_THREADS_MODE=="with-batch") runThreadsWithBatch(epoch, fn);
+  else runThreadsAll(fn);
 }
 #pragma endregion
 
@@ -113,43 +143,60 @@ void runExperiment(const G& x) {
   random_device dev;
   default_random_engine rnd(dev());
   int repeat  = REPEAT_METHOD;
-  vector<K> *init = nullptr;
+  int retries = 5;
   double M = edgeWeightOmp(x)/2;
   // Follow a specific result logging format, which can be easily parsed later.
   auto glog = [&](const auto& ans, const char *technique, int numThreads, const auto& y, auto M, auto deletionsf, auto insertionsf) {
     printf(
       "{-%.3e/+%.3e batchf, %03d threads} -> "
-      "{%09.1fms, %09.1fms preproc, %04d iters, %01.9f modularity} %s\n",
+      "{%09.1fms, %09.1fms mark, %09.1fms init, %.3e aff, %04d iters, %01.9f modularity} %s\n",
       double(deletionsf), double(insertionsf), numThreads,
-      ans.time, ans.preprocessingTime, ans.iterations, getModularity(y, ans, M), technique
+      ans.time, ans.markingTime, ans.initializationTime,
+      double(ans.affectedVertices), ans.iterations, getModularity(y, ans, M), technique
     );
   };
   // Get community memberships on original graph (static).
-  auto d0 = rakStaticOmp(x, init, {5});
+  auto d0 = rakStaticOmp(x, {5});
   glog(d0, "rakStaticOmpOriginal", MAX_THREADS, x, M, 0.0, 0.0);
+  #if BATCH_LENGTH>1
+  vector<K> D2, D3, D4;
+  #else
+  const auto& D2 = d0.membership;
+  const auto& D3 = d0.membership;
+  const auto& D4 = d0.membership;
+  #endif
   // Get community memberships on updated graph (dynamic).
   runBatches(x, rnd, [&](const auto& y, auto deletionsf, const auto& deletions, auto insertionsf, const auto& insertions, int sequence, int epoch) {
     double M = edgeWeightOmp(y)/2;
+    #if BATCH_LENGTH>1
+    if (sequence==0) {
+      D2 = d0.membership;
+      D3 = d0.membership;
+      D4 = d0.membership;
+    }
+    #endif
     // Adjust number of threads.
-    runThreads([&](int numThreads) {
+    runThreads(epoch, [&](int numThreads) {
       auto flog = [&](const auto& ans, const char *technique) {
         glog(ans, technique, numThreads, y, M, deletionsf, insertionsf);
       };
       // Find static RAK (strict).
-      auto d1 = rakStaticOmp(y, init, {repeat});
+      auto d1 = rakStaticOmp(y, {repeat});
       flog(d1, "rakStaticOmp");
-      auto c1 = rakStaticCuda(y, init, {repeat});
-      flog(c1, "rakStaticCuda");
       // Find naive-dynamic RAK (strict).
-      auto d2 = rakStaticOmp(y, &d0.membership, {repeat});
+      auto d2 = rakNaiveDynamicOmp(y, D2, {repeat});
       flog(d2, "rakNaiveDynamicOmp");
-      auto c2 = rakStaticCuda(y, &d0.membership, {repeat});
-      flog(c2, "rakNaiveDynamicCuda");
+      // Find delta-screening based dynamic RAK (strict).
+      auto d3 = rakDynamicDeltaScreeningOmp(y, deletions, insertions, D3, {repeat});
+      flog(d3, "rakDynamicDeltaScreeningOmp");
       // Find frontier based dynamic RAK (strict).
-      auto d4 = rakDynamicFrontierOmp(y, deletions, insertions, &d0.membership, {repeat});
+      auto d4 = rakDynamicFrontierOmp(y, deletions, insertions, D4, {repeat});
       flog(d4, "rakDynamicFrontierOmp");
-      auto c4 = rakDynamicFrontierCuda(y, deletions, insertions, &d0.membership, {repeat});
-      flog(c4, "rakDynamicFrontierCuda");
+      #if BATCH_LENGTH>1
+      D2 = d2.membership;
+      D3 = d3.membership;
+      D4 = d4.membership;
+      #endif
     });
   });
 }
