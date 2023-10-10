@@ -450,7 +450,7 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
  * @returns rak result
  */
 template <class FLAG=char, class G>
-inline RakResult<K> rakStaticCuda(const G& x, const RakOptions& o={}) {
+inline auto rakStaticCuda(const G& x, const RakOptions& o={}) {
   using K = typename G::key_type;
   vector<K> *q = nullptr;
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
@@ -473,7 +473,7 @@ inline RakResult<K> rakStaticCuda(const G& x, const RakOptions& o={}) {
 template <class FLAG=char, class G, class K>
 inline RakResult<K> rakNaiveDynamicCuda(const G& y, const vector<K>& q, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
-  return rakInvokeCuda<FLAG>(x, &q, o, fm);
+  return rakInvokeCuda<FLAG>(y, &q, o, fm);
 }
 #pragma endregion
 
@@ -492,8 +492,8 @@ inline RakResult<K> rakNaiveDynamicCuda(const G& y, const vector<K>& q, const Ra
  * @returns rak result
  */
 template <class FLAG=char, class G, class K, class V>
-inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>& q, const RakOptions& o={}) {
-  auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
+inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K, V>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>& q, const RakOptions& o={}) {
+  auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, q); };
   return rakInvokeCuda<FLAG>(y, &q, o, fm);
 }
 #pragma endregion
