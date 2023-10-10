@@ -441,19 +441,39 @@ inline RakResult<K> rakInvokeCuda(const G& x, const vector<K>* q, const RakOptio
 
 
 
-#pragma region STATIC/NAIVE-DYNAMIC
+#pragma region STATIC
 /**
- * Obtain the community membership of each vertex with Static/Naive-dynamic RAK.
+ * Obtain the community membership of each vertex with Static RAK.
  * @tparam FLAG flag type for tracking affected vertices
  * @param x original graph
+ * @param o rak options
+ * @returns rak result
+ */
+template <class FLAG=char, class G>
+inline RakResult<K> rakStaticCuda(const G& x, const RakOptions& o={}) {
+  using K = typename G::key_type;
+  vector<K> *q = nullptr;
+  auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
+  return rakInvokeCuda<FLAG>(x, q, o, fm);
+}
+#pragma endregion
+
+
+
+
+#pragma region NAIVE-DYNAMIC
+/**
+ * Obtain the community membership of each vertex with Naive-dynamic RAK.
+ * @tparam FLAG flag type for tracking affected vertices
+ * @param y updated graph
  * @param q initial community each vertex belongs to
  * @param o rak options
  * @returns rak result
  */
 template <class FLAG=char, class G, class K>
-inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const RakOptions& o={}) {
+inline RakResult<K> rakNaiveDynamicCuda(const G& y, const vector<K>& q, const RakOptions& o={}) {
   auto fm = [](auto& vaff) { fillValueOmpU(vaff, FLAG(1)); };
-  return rakInvokeCuda<FLAG>(x, q, o, fm);
+  return rakInvokeCuda<FLAG>(x, &q, o, fm);
 }
 #pragma endregion
 
@@ -472,9 +492,9 @@ inline RakResult<K> rakStaticCuda(const G& x, const vector<K>* q=nullptr, const 
  * @returns rak result
  */
 template <class FLAG=char, class G, class K, class V>
-inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>* q, const RakOptions& o={}) {
+inline RakResult<K> rakDynamicFrontierCuda(const G& y, const vector<tuple<K, K>>& deletions, const vector<tuple<K, K, V>>& insertions, const vector<K>& q, const RakOptions& o={}) {
   auto fm = [&](auto& vaff) { rakAffectedVerticesFrontierOmpW(vaff, y, deletions, insertions, *q); };
-  return rakInvokeCuda<FLAG>(y, q, o, fm);
+  return rakInvokeCuda<FLAG>(y, &q, o, fm);
 }
 #pragma endregion
 #pragma endregion
