@@ -7,6 +7,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cuda_runtime.h>
+#include <cub/cub.cuh>
+#include <thrust/device_ptr.h>
+#include <thrust/scan.h>
 #include "_debug.hxx"
 #include "_cmath.hxx"
 
@@ -727,6 +730,68 @@ inline void liNormDeltaInplaceCuW(T *a, const T *x, const T *y, size_t N) {
   liNormDeltaCukW<<<G, B>>>(a, x, y, N);
   TRY_CUDA( cudaDeviceSynchronize() );
   liNormCukW<GRID_LIMIT_REDUCE_CUDA><<<1, G>>>(a, a, G);
+}
+#pragma endregion
+
+
+
+
+#pragma region INCLUSIVE SCAN
+/**
+ * Perform inclusive scan of an array into another array.
+ * @param a output array (updated)
+ * @param buf temporary buffer (output)
+ * @param x input array
+ * @param N size of arrays
+ */
+template <class TA, class TX>
+inline void inclusiveScanCubW(TA *a, TA *buf, const TX *x, size_t N) {
+  cub::DeviceScan::InclusiveSum(buf, N, x, a, N);
+}
+
+
+/**
+ * Perform inclusive scan of an array into another array.
+ * @param a output array (updated)
+ * @param x input array
+ * @param N size of arrays
+ */
+template <class TA, class TX>
+inline void inclusiveScanThrustW(TA *a, const TX *x, size_t N) {
+  thrust::device_ptr<TA> aD(a);
+  thrust::device_ptr<TX> xD((TX*) x);
+  thrust::inclusive_scan(xD, xD+N, aD);
+}
+#pragma endregion
+
+
+
+
+#pragma region EXCLUSIVE SCAN
+/**
+ * Perform exclusive scan of an array into another array.
+ * @param a output array (updated)
+ * @param buf temporary buffer (output)
+ * @param x input array
+ * @param N size of arrays
+ */
+template <class TA, class TX>
+inline void exclusiveScanCubW(TA *a, TA *buf, const TX *x, size_t N) {
+  cub::DeviceScan::ExclusiveSum(buf, N, x, a, N);
+}
+
+
+/**
+ * Perform exclusive scan of an array into another array.
+ * @param a output array (updated)
+ * @param x input array
+ * @param N size of arrays
+ */
+template <class TA, class TX>
+inline void exclusiveScanThrustW(TA *a, const TX *x, size_t N) {
+  thrust::device_ptr<TA> aD(a);
+  thrust::device_ptr<TX> xD((TX*) x);
+  thrust::exclusive_scan(xD, xD+N, aD);
 }
 #pragma endregion
 #pragma endregion
