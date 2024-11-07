@@ -74,10 +74,25 @@ void runExperiment(const G& x) {
     auto b0 = rakStaticOmp(x, {REPEAT_METHOD});
     flog(b0, "rakStaticOmp");
   }
-  // Find static RAK, using CUDA.
+  // Find static RAK, using CUDA, with quadratic hashing and double hashing.
   {
-    auto b0 = rakStaticCuda(x, {REPEAT_METHOD});
-    flog(b0, "rakStaticCuda");
+    auto b0 = rakStaticCuda<3>(x, {REPEAT_METHOD});
+    flog(b0, "rakStaticCudaQuadriaticDouble");
+  }
+  // Find static RAK, using CUDA, with double hashing.
+  {
+    auto b0 = rakStaticCuda<2>(x, {REPEAT_METHOD});
+    flog(b0, "rakStaticCudaDouble");
+  }
+  // Find static RAK, using CUDA, with quadratic hashing.
+  {
+    auto b0 = rakStaticCuda<1>(x, {REPEAT_METHOD});
+    flog(b0, "rakStaticCudaQuadriatic");
+  }
+  // Find static RAK, using CUDA, with linear hashing.
+  {
+    auto b0 = rakStaticCuda<0>(x, {REPEAT_METHOD});
+    flog(b0, "rakStaticCudaLinear");
   }
 }
 
