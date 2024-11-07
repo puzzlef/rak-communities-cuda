@@ -74,10 +74,15 @@ void runExperiment(const G& x) {
     auto b0 = rakStaticOmp(x, {REPEAT_METHOD});
     flog(b0, "rakStaticOmp");
   }
-  // Find static RAK, using CUDA.
+  // Find static RAK, using CUDA (async).
   {
-    auto b0 = rakStaticCuda(x, {REPEAT_METHOD});
-    flog(b0, "rakStaticCuda");
+    auto b0 = rakStaticCuda<3, false>(x, {REPEAT_METHOD});
+    flog(b0, "rakStaticCudaAsync");
+  }
+  // Find static RAK, using CUDA (sync).
+  {
+    auto b0 = rakStaticCuda<3, true>(x, {REPEAT_METHOD});
+    flog(b0, "rakStaticCudaSync");
   }
 }
 

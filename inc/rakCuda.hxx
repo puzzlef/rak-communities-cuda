@@ -1,5 +1,6 @@
 #pragma once
 #include <cstdint>
+#include <utility>
 #include <vector>
 #include <algorithm>
 #include "_main.hxx"
@@ -60,18 +61,18 @@ inline void rakInitializeCuW(K *vcom, K NB, K NE) {
  * @param xedg edge keys of original graph
  * @param xwei edge values of original graph
  * @param u given vertex
- * @param vcom community each vertex belongs to
+ * @param vdom community each vertex belonged to
  * @param i start index
  * @param DI index stride
  */
 template <bool SELF=false, bool BLOCK=false, int HTYPE=3, class O, class K, class V, class W>
-inline void __device__ rakScanCommunitiesCudU(K *hk, W *hv, size_t H, size_t T, const O *xoff, const K *xedg, const V *xwei, K u, const K *vcom, size_t i, size_t DI) {
+inline void __device__ rakScanCommunitiesCudU(K *hk, W *hv, size_t H, size_t T, const O *xoff, const K *xedg, const V *xwei, K u, const K *vdom, size_t i, size_t DI) {
   size_t EO = xoff[u];
   size_t EN = xoff[u+1] - xoff[u];
   for (; i<EN; i+=DI) {
     K v = xedg[EO+i];
     W w = xwei[EO+i];
-    K c = vcom[v];
+    K c = vdom[v];
     if (!SELF && u==v) continue;
     hashtableAccumulateCudU<BLOCK, HTYPE>(hk, hv, H, T, c+1, w);
   }
@@ -114,12 +115,13 @@ inline void __device__ rakMarkNeighborsCudU(F *vaff, const O *xoff, const K *xed
  * @param xoff offsets of original graph
  * @param xedg edge keys of original graph
  * @param xwei edge values of original graph
+ * @param vdom community each vertex belonged to
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
  * @param PICKLESS allow only picking smaller community id?
  */
-template <int HTYPE=3, int BLIM=32, class O, class K, class V, class W, class F>
-void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
+template <int HTYPE=3, int BLIM=32, bool SYNC=false, class O, class K, class V, class W, class F>
+void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, const K *vdom, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
   __shared__ uint64_cu ncomb[BLIM];
   // const int DMAX = BLIM;
@@ -127,9 +129,12 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
   // W shrw[2*DMAX];
   ncomb[t] = 0;
   for (K u=NB+B*b+t; u<NE; u+=G*B) {
-    if (!vaff[u]) continue;
+    if (!vaff[u]) {
+      if (SYNC) vcom[u] = vdom[u];
+      continue;
+    }
     // Scan communities connected to u.
-    K d = vcom[u];
+    K d = vdom[u];
     size_t EO = xoff[u];
     size_t EN = xoff[u+1] - xoff[u];
     size_t H  = nextPow2Cud(EN) - 1;
@@ -137,7 +142,7 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
     K *hk = bufk + 2*EO;  // shrk;
     W *hv = bufw + 2*EO;  // shrw;
     hashtableClearCudW(hk, hv, H, 0, 1);
-    rakScanCommunitiesCudU<false, false, HTYPE>(hk, hv, H, T, xoff, xedg, xwei, u, vcom, 0, 1);
+    rakScanCommunitiesCudU<false, false, HTYPE>(hk, hv, H, T, xoff, xedg, xwei, u, vdom, 0, 1);
     // Find best community for u.
     hashtableMaxCudU(hk, hv, H, 0, 1);
     vaff[u] = F(0);         // Mark u as unaffected (Use two buffers?)
@@ -168,15 +173,16 @@ void __global__ rakMoveIterationThreadCukU(uint64_cu *ncom, K *vcom, F *vaff, K 
  * @param xoff offsets of original graph
  * @param xedg edge keys of original graph
  * @param xwei edge values of original graph
+ * @param vdom community each vertex belonged to
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
  * @param PICKLESS allow only picking smaller community id?
  */
-template <int HTYPE=3, int BLIM=32, class O, class K, class V, class W, class F>
-inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
+template <int HTYPE=3, int BLIM=32, bool SYNC=false, class O, class K, class V, class W, class F>
+inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, const K *vdom, K NB, K NE, bool PICKLESS) {
   const int B = blockSizeCu(NE-NB, BLIM);
   const int G = gridSizeCu (NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationThreadCukU<HTYPE, BLIM><<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
+  rakMoveIterationThreadCukU<HTYPE, BLIM, SYNC><<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, vdom, NB, NE, PICKLESS);
 }
 
 
@@ -192,12 +198,13 @@ inline void rakMoveIterationThreadCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk
  * @param xoff offsets of original graph
  * @param xedg edge keys of original graph
  * @param xwei edge values of original graph
+ * @param vdom community each vertex belonged to
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
  * @param PICKLESS allow only picking smaller community id?
  */
-template <int HTYPE=3, int BLIM=128, class O, class K, class V, class W, class F>
-void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
+template <int HTYPE=3, int BLIM=128, bool SYNC=false, class O, class K, class V, class W, class F>
+void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, const K *vdom, K NB, K NE, bool PICKLESS) {
   DEFINE_CUDA(t, b, B, G);
   // const int DMAX = BLIM;
   // __shared__ K shrk[2*DMAX];
@@ -207,10 +214,13 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
   for (K u=NB+b; u<NE; u+=G) {
     if (t==0) vaffb = vaff[u];
     __syncthreads();
-    if (!vaffb) continue;
+    if (!vaffb) {
+      if (SYNC && t==0) vcom[u] = vdom[u];
+      continue;
+    }
     // if (!vaff[u]) continue;
     // Scan communities connected to u.
-    K d = vcom[u];
+    K d = vdom[u];
     size_t EO = xoff[u];
     size_t EN = xoff[u+1] - xoff[u];
     size_t H  = nextPow2Cud(EN) - 1;
@@ -219,7 +229,7 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
     W *hv = bufw + 2*EO;  // EN<=DMAX? shrw : bufw + 2*EO;
     hashtableClearCudW(hk, hv, H, t, B);
     __syncthreads();
-    rakScanCommunitiesCudU<false, true, HTYPE>(hk, hv, H, T, xoff, xedg, xwei, u, vcom, t, B);
+    rakScanCommunitiesCudU<false, true, HTYPE>(hk, hv, H, T, xoff, xedg, xwei, u, vdom, t, B);
     __syncthreads();
     // Find best community for u.
     hashtableMaxCudU<true>(hk, hv, H, t, B);
@@ -251,15 +261,16 @@ void __global__ rakMoveIterationBlockCukU(uint64_cu *ncom, K *vcom, F *vaff, K *
  * @param xoff offsets of original graph
  * @param xedg edge keys of original graph
  * @param xwei edge values of original graph
+ * @param vdom community each vertex belonged to
  * @param NB begin vertex (inclusive)
  * @param NE end vertex (exclusive)
  * @param PICKLESS allow only picking smaller community id?
  */
-template <int HTYPE=3, int BLIM=128, class O, class K, class V, class W, class F>
-inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K NB, K NE, bool PICKLESS) {
+template <int HTYPE=3, int BLIM=128, bool SYNC=false, class O, class K, class V, class W, class F>
+inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, const K *vdom, K NB, K NE, bool PICKLESS) {
   const int B = blockSizeCu<true>(NE-NB, BLIM);
   const int G = gridSizeCu <true>(NE-NB, B, GRID_LIMIT_MAP_CUDA);
-  rakMoveIterationBlockCukU<HTYPE, BLIM><<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NB, NE, PICKLESS);
+  rakMoveIterationBlockCukU<HTYPE, BLIM, SYNC><<<G, B>>>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, vdom, NB, NE, PICKLESS);
 }
 #pragma endregion
 
@@ -272,6 +283,7 @@ inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk,
  * @tparam HTYPE hashtable type (0: linear, 1: quadratic, 2: double, 3: quadritic + double)
  * @param ncom number of changed vertices (updated)
  * @param vcom community each vertex belongs to (updated)
+ * @param vdom community each vertex belonged to (updated)
  * @param vaff vertex affected flags (updated)
  * @param bufk buffer for hashtable keys (updated)
  * @param bufw buffer for hashtable values (updated)
@@ -284,17 +296,18 @@ inline void rakMoveIterationBlockCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk,
  * @param L maximum number of iterations [20]
  * @returns number of iterations performed
  */
-template <int HTYPE=3, class O, class K, class V, class W, class F>
-inline int rakLoopCuU(uint64_cu *ncom, K *vcom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
+template <int HTYPE=3, bool SYNC=false, class O, class K, class V, class W, class F>
+inline int rakLoopCuU(uint64_cu *ncom, K *vcom, K *vdom, F *vaff, K *bufk, W *bufw, const O *xoff, const K *xedg, const V *xwei, K N, K NL, double E, int L) {
   int l = 0;
   uint64_cu n = 0;
   const int PICKSTEP = 4;
   while (l<L) {
     bool PICKLESS = l % PICKSTEP == 0;
     fillValueCuW(ncom, 1, uint64_cu());
-    rakMoveIterationThreadCuU<HTYPE>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, K(), NL, PICKLESS);
-    rakMoveIterationBlockCuU <HTYPE>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, NL,  N,  PICKLESS); ++l;
-    // rakCrossCheckCuU(ncom, vdom, vcom, K(), N); swap(vdom, vcom);
+    rakMoveIterationThreadCuU<HTYPE, 32,  SYNC>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, vdom, K(), NL, PICKLESS);
+    rakMoveIterationBlockCuU <HTYPE, 128, SYNC>(ncom, vcom, vaff, bufk, bufw, xoff, xedg, xwei, vdom, NL,  N,  PICKLESS); ++l;
+    // rakCrossCheckCuU(ncom, vdom, vcom, K(), N);
+    if (SYNC) swap(vcom, vdom);
     TRY_CUDA( cudaMemcpy(&n, ncom, sizeof(uint64_cu), cudaMemcpyDeviceToHost) );
     if (!PICKLESS && double(n)/N <= E) break;
   }
@@ -340,7 +353,7 @@ inline size_t rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
  * @param fm marking affected vertices (vaffD)
  * @returns rak result
  */
-template <int HTYPE=3, class G, class FI, class FM>
+template <int HTYPE=3, bool SYNC=false, class G, class FI, class FM>
 inline auto rakInvokeCuda(const G& x, const RakOptions& o, FI fi, FM fm) {
   using K = typename G::key_type;
   using V = typename G::edge_value_type;
@@ -359,12 +372,13 @@ inline auto rakInvokeCuda(const G& x, const RakOptions& o, FI fi, FM fm) {
   vector<O> xoff(N+1);  // CSR offsets array
   vector<K> xedg(M);    // CSR edge keys array
   vector<V> xwei(M);    // CSR edge values array
-  vector<K> vcom(S), vcomc(N);
+  vector<K> vdom(S), vdomc(N);
   vector<F> vaff(S), vaffc(N);
   O *xoffD = nullptr;  // CSR offsets array [device]
   K *xedgD = nullptr;  // CSR edge keys array [device]
   V *xweiD = nullptr;  // CSR edge values array [device]
   F *vaffD = nullptr;  // Affected vertex flag [device]
+  K *vdomD = nullptr;  // Community membership [device]
   K *vcomD = nullptr;  // Community membership [device]
   K *bufkD = nullptr;  // Buffer for hashtable keys [device]
   W *bufwD = nullptr;  // Buffer for hashtable values [device]
@@ -381,6 +395,7 @@ inline auto rakInvokeCuda(const G& x, const RakOptions& o, FI fi, FM fm) {
   TRY_CUDA( cudaMalloc(&xoffD, (N+1) * sizeof(O)) );
   TRY_CUDA( cudaMalloc(&xedgD,  M    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&xweiD,  M    * sizeof(V)) );
+  TRY_CUDA( cudaMalloc(&vdomD,  N    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&vcomD,  N    * sizeof(K)) );
   TRY_CUDA( cudaMalloc(&vaffD,  N    * sizeof(F)) );
   TRY_CUDA( cudaMalloc(&bufkD, (2*M) * sizeof(K)) );
@@ -394,25 +409,26 @@ inline auto rakInvokeCuda(const G& x, const RakOptions& o, FI fi, FM fm) {
   float tm = 0, ti = 0;
   float t  = measureDuration([&]() {
     // Setup initial community membership.
-    ti += measureDuration([&]() { fi(vcomD, ks); });
+    ti += measureDuration([&]() { fi(vdomD, ks); });
     // Mark initial affected vertices.
     tm += measureDuration([&]() { fm(vaffD, ks); });
     // Perform RAK iterations.
-    l = rakLoopCuU<HTYPE>(ncomD, vcomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L);
+    l = rakLoopCuU<HTYPE, SYNC>(ncomD, SYNC? vcomD : vdomD, vdomD, vaffD, bufkD, bufwD, xoffD, xedgD, xweiD, K(N), K(NL), E, L);
   }, o.repeat);
   // Obtain final community membership.
-  TRY_CUDA( cudaMemcpy(vcomc.data(), vcomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
-  scatterValuesOmpW(vcom, vcomc, ks);
+  TRY_CUDA( cudaMemcpy(vdomc.data(), vdomD, N * sizeof(K), cudaMemcpyDeviceToHost) );
+  scatterValuesOmpW(vdom, vdomc, ks);
   // Free device memory.
   TRY_CUDA( cudaFree(xoffD) );
   TRY_CUDA( cudaFree(xedgD) );
   TRY_CUDA( cudaFree(xweiD) );
+  TRY_CUDA( cudaFree(vdomD) );
   TRY_CUDA( cudaFree(vcomD) );
   TRY_CUDA( cudaFree(vaffD) );
   TRY_CUDA( cudaFree(bufkD) );
   TRY_CUDA( cudaFree(bufwD) );
   TRY_CUDA( cudaFree(ncomD) );
-  return RakResult<K>(vcom, l, t, tm/o.repeat, ti/o.repeat);
+  return RakResult<K>(vdom, l, t, tm/o.repeat, ti/o.repeat);
 }
 #pragma endregion
 
@@ -427,14 +443,14 @@ inline auto rakInvokeCuda(const G& x, const RakOptions& o, FI fi, FM fm) {
  * @param o rak options
  * @returns rak result
  */
-template <int HTYPE=3, class G>
+template <int HTYPE=3, bool SYNC=false, class G>
 inline auto rakStaticCuda(const G& x, const RakOptions& o={}) {
   using  K = typename G::key_type;
   using  F = char;
   size_t N = x.order();
   auto  fi = [&](K *vcomD, const auto& ks) { rakInitializeCuW(vcomD, K(), K(N)); };
   auto  fm = [&](F *vaffD, const auto& ks) { fillValueCuW(vaffD, N, F(1)); };
-  return rakInvokeCuda<HTYPE>(x, o, fi, fm);
+  return rakInvokeCuda<HTYPE, SYNC>(x, o, fi, fm);
 }
 #pragma endregion
 #pragma endregion
