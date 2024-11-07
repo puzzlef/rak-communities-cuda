@@ -58,7 +58,6 @@ inline double getModularity(const G& x, const RakResult<K>& a, double M) {
  */
 template <class G>
 void runExperiment(const G& x) {
-  int repeat = REPEAT_METHOD;
   double   M = edgeWeightOmp(x)/2;
   // Follow a specific result logging format, which can be easily parsed later.
   auto flog = [&](const auto& ans, const char *technique) {
@@ -72,7 +71,7 @@ void runExperiment(const G& x) {
   };
   // Find static RAK, using OpenMP.
   {
-    auto b0 = rakStaticOmp(x, {repeat});
+    auto b0 = rakStaticOmp(x, {REPEAT_METHOD});
     flog(b0, "rakStaticOmp");
   }
 }

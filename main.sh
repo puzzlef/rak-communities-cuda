@@ -2,6 +2,7 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --ntasks-per-node=1
+#SBATCH --gpus-per-node=1
 #SBATCH --cpus-per-task=64
 #SBATCH --exclusive
 #SBATCH --job-name slurm
@@ -10,6 +11,7 @@
 # module load hpcx-2.7.0/hpcx-ompi
 # source scl_source enable gcc-toolset-11
 # source /opt/rh/gcc-toolset-13/enable
+module load cuda/12.3
 src="rak-communities-cuda"
 out="$HOME/Logs/$src$1.log"
 ulimit -s unlimited
@@ -34,7 +36,7 @@ DEFINES=(""
 )
 
 # Compile
-g++ ${DEFINES[*]} -std=c++17 -O3 -mavx -fopenmp main.cxx
+nvcc ${DEFINES[*]} -std=c++17 -O3 -Xcompiler -fopenmp -x cu main.cxx
 
 # Run on each graph
 runEach() {
