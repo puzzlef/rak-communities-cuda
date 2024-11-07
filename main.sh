@@ -36,7 +36,7 @@ DEFINES=(""
 )
 
 # Compile
-nvcc ${DEFINES[*]} -std=c++17 -O3 -Xcompiler -fopenmp -x cu main.cxx
+nvcc ${DEFINES[*]} -std=c++17 -O3 -arch=sm_70 -Xcompiler -fopenmp -x cu main.cxx
 
 # Run on each graph
 runEach() {

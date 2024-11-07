@@ -15,4 +15,6 @@
 #include "bfs.hxx"
 #include "dfs.hxx"
 #include "batch.hxx"
+#include "hashtableCuda.hxx"
 #include "rak.hxx"
+#include "rakCuda.hxx"
