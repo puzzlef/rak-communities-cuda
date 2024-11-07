@@ -11,7 +11,7 @@
 # module load hpcx-2.7.0/hpcx-ompi
 # source scl_source enable gcc-toolset-11
 # source /opt/rh/gcc-toolset-13/enable
-module load cuda/12.3
+# module load cuda/12.3
 src="rak-communities-cuda"
 out="$HOME/Logs/$src$1.log"
 ulimit -s unlimited
@@ -36,7 +36,7 @@ DEFINES=(""
 )
 
 # Compile
-nvcc ${DEFINES[*]} -std=c++17 -O3 -Xcompiler -fopenmp -x cu main.cxx
+nvcc ${DEFINES[*]} -std=c++17 -O3 -arch=sm_70 -Xcompiler -fopenmp -x cu main.cxx
 
 # Run on each graph
 runEach() {
