@@ -286,10 +286,21 @@ class DiGraph {
   /**
    * Add a vertex to the graph.
    * @param u vertex id
+   * @note This operation is lazy.
+   */
+  inline void addVertex(K u) {
+    if (hasVertex(u)) return;
+    if (u >= span()) respan(u+1);
+    exists[u] = true;
+  }
+
+  /**
+   * Add a vertex to the graph.
+   * @param u vertex id
    * @param d associated data of the vertex
    * @note This operation is lazy.
    */
-  inline void addVertex(K u, V d=V()) {
+  inline void addVertex(K u, V d) {
     if (hasVertex(u)) { values[u] = d; return; }
     if (u >= span()) respan(u+1);
     exists[u] = true;
@@ -379,6 +390,8 @@ class DiGraphCsr {
   using vertex_value_type = V;
   /** Edge value type (edge weight). */
   using edge_value_type   = E;
+  /** Offset type (edge offset). */
+  using offset_type       = O;
   #pragma endregion
 
 
@@ -598,13 +611,36 @@ class DiGraphCsr {
   #pragma region UPDATE
   public:
   /**
+   * Adjust the order of the graph (or the number of vertices).
+   * @param n new order, or number of vertices
+   */
+  inline void resize(size_t n) {
+    offsets.resize(n+1);
+    degrees.resize(n);
+    values.resize(n);
+  }
+
+
+  /**
+   * Adjust the order and size of the graph (or the number of vertices and edges).
+   * @param n new order, or number of vertices
+   * @param m new size, or number of edges
+   */
+  inline void resize(size_t n, size_t m) {
+    offsets.resize(n+1);
+    degrees.resize(n);
+    values.resize(n);
+    edgeKeys.resize(m);
+    edgeValues.resize(m);
+  }
+
+
+  /**
    * Adjust the span of the graph (or the number of vertices).
    * @param n new span
    */
   inline void respan(size_t n) {
-    offsets.resize(n+1);
-    degrees.resize(n);
-    values.resize(n);
+    resize(n);
   }
   #pragma endregion
   #pragma endregion
@@ -612,6 +648,14 @@ class DiGraphCsr {
 
   #pragma region CONSTRUCTORS
   public:
+  /**
+   * Create an empty CSR representation of a directed graph.
+   */
+  DiGraphCsr() {
+    offsets.push_back(0);
+  }
+
+
   /**
    * Allocate space for CSR representation of a directed graph.
    * @param n number of vertices
@@ -635,7 +679,6 @@ class DiGraphCsr {
 #pragma region WRITE
 /**
  * Write the only the sizes of a graph to an output stream.
- * @tparam G graph type
  * @param a output stream
  * @param x graph
  */
@@ -647,7 +690,6 @@ inline void writeGraphSizes(ostream& a, const G& x) {
 
 /**
  * @brief Write the full details of a graph to an output stream.
- * @tparam G graph type
  * @param a output stream
  * @param x graph
  */
@@ -667,7 +709,6 @@ inline void writeGraphDetailed(ostream& a, const G& x) {
 
 /**
  * Write a graph to an output stream.
- * @tparam G graph type
  * @param a output stream
  * @param x graph
  * @param detailed write detailed information?
@@ -678,11 +719,9 @@ inline void writeGraph(ostream& a, const G& x, bool detailed=false) {
   else writeGraphSizes(a, x);
 }
 
+
 /**
  * Write a graph to an output stream.
- * @tparam K vertex id type
- * @tparam V vertex data type
- * @tparam E edge weight type
  * @param a output stream
  * @param x graph
  * @param detailed write detailed information?
@@ -692,16 +731,38 @@ inline void write(ostream& a, const DiGraph<K, V, E>& x, bool detailed=false) {
   writeGraph(a, x, detailed);
 }
 
+
+/**
+ * Write a graph to an output stream.
+ * @param a output stream
+ * @param x csr graph
+ * @param detailed write detailed information?
+ */
+template <class K, class V, class E, class O>
+inline void write(ostream& a, const DiGraphCsr<K, V, E, O>& x, bool detailed=false) {
+  writeGraph(a, x, detailed);
+}
+
+
 /**
  * Write only the sizes of a graph to an output stream.
- * @tparam K vertex id type
- * @tparam V vertex data type
- * @tparam E edge weight type
  * @param a output stream
  * @param x graph
  */
 template <class K, class V, class E>
 inline ostream& operator<<(ostream& a, const DiGraph<K, V, E>& x) {
+  write(a, x);
+  return a;
+}
+
+
+/**
+ * Write only the sizes of a graph to an output stream.
+ * @param a output stream
+ * @param x csr graph
+ */
+template <class K, class V, class E, class O>
+inline ostream& operator<<(ostream& a, const DiGraphCsr<K, V, E, O>& x) {
   write(a, x);
   return a;
 }
