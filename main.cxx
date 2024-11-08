@@ -72,12 +72,12 @@ void runExperiment(const G& x) {
   // Find static RAK, using OpenMP.
   {
     auto b0 = rakStaticOmp(x, {REPEAT_METHOD});
-    flog(b0, "rakStaticOmp");
+    flog(b0, "rakStaticOmpFloat");
   }
   // Find static RAK, using CUDA.
   {
     auto b0 = rakStaticCuda(x, {REPEAT_METHOD});
-    flog(b0, "rakStaticCuda");
+    flog(b0, "rakStaticCudaFloat");
   }
 }
 

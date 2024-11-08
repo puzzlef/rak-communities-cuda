@@ -41,7 +41,7 @@ struct RakOptions {
 
 
 /** Weight to be used in hashtable. */
-#define RAK_WEIGHT_TYPE double
+#define RAK_WEIGHT_TYPE float
 
 
 
