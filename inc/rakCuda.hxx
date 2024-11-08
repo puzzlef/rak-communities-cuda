@@ -334,17 +334,18 @@ inline size_t rakPartitionVerticesCudaU(vector<K>& ks, const G& x) {
 /**
  * Setup and perform the RAK algorithm.
  * @tparam HTYPE hashtable type (0: linear, 1: quadratic, 2: double, 3: quadritic + double)
+ * @tparam HWEIGHT hashtable weight type
  * @param x original graph
  * @param o rak options
  * @param fi initialzing community membership (vcomD)
  * @param fm marking affected vertices (vaffD)
  * @returns rak result
  */
-template <int HTYPE=3, class G, class FI, class FM>
+template <int HTYPE=3, class HWEIGHT=float, class G, class FI, class FM>
 inline auto rakInvokeCuda(const G& x, const RakOptions& o, FI fi, FM fm) {
   using K = typename G::key_type;
   using V = typename G::edge_value_type;
-  using W = RAK_WEIGHT_TYPE;
+  using W = HWEIGHT;
   using O = uint32_t;
   using F = char;
   // Get graph properties.
@@ -423,18 +424,19 @@ inline auto rakInvokeCuda(const G& x, const RakOptions& o, FI fi, FM fm) {
 /**
  * Obtain the community membership of each vertex with Static RAK.
  * @tparam HTYPE hashtable type (0: linear, 1: quadratic, 2: double, 3: quadritic + double)
+ * @tparam HWEIGHT hashtable weight type
  * @param x original graph
  * @param o rak options
  * @returns rak result
  */
-template <int HTYPE=3, class G>
+template <int HTYPE=3, class HWEIGHT=float, class G>
 inline auto rakStaticCuda(const G& x, const RakOptions& o={}) {
   using  K = typename G::key_type;
   using  F = char;
   size_t N = x.order();
   auto  fi = [&](K *vcomD, const auto& ks) { rakInitializeCuW(vcomD, K(), K(N)); };
   auto  fm = [&](F *vaffD, const auto& ks) { fillValueCuW(vaffD, N, F(1)); };
-  return rakInvokeCuda<HTYPE>(x, o, fi, fm);
+  return rakInvokeCuda<HTYPE, HWEIGHT>(x, o, fi, fm);
 }
 #pragma endregion
 #pragma endregion
