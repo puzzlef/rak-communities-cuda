@@ -63,10 +63,10 @@ void runExperiment(const G& x) {
   auto flog = [&](const auto& ans, const char *technique) {
     printf(
       "{%03d threads} -> "
-      "{%09.1fms, %09.1fms mark, %09.1fms init, %04d iters, %01.9f modularity} %s\n",
+      "{%09.1fms, %09.1fms mark, %09.1fms init, %04d iters, %01.9f modularity, %zu communities} %s\n",
       MAX_THREADS,
       ans.time, ans.markingTime, ans.initializationTime,
-      ans.iterations, getModularity(x, ans, M), technique
+      ans.iterations, getModularity(x, ans, M), communities(x, ans.membership).size(), technique
     );
   };
   // Find static RAK, using OpenMP.
